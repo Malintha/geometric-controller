@@ -214,7 +214,7 @@ private:
     float kv;
     float kr;
     float kOmega;
-    const float g = 8.7;
+    static const float g = 8.7;
 
     // translation vectors
     Vector3d e1;

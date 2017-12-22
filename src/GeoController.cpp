@@ -21,16 +21,17 @@ public:
                   const ros::NodeHandle &n) : m_serviceTakeoff(), m_serviceLand(), m_state(Idle), m_thrust(0),
                                               m_startZ(-1.0), m_worldFrame(worldFrame), m_bodyFrame(frame) {
         ros::NodeHandle nh;
-        m_listener.waitForTransform(m_worldFrame, m_bodyFrame, ros::Time(0), ros::Duration(10.0));
+//        m_listener.waitForTransform(m_worldFrame, m_bodyFrame, ros::Time(0), ros::Duration(10.0));
         m_pubNav = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
+        m_pubThrust = nh.advertise<geometry_msgs::Twist>("cmd_thrust", 1);
         m_serviceTakeoff = nh.advertiseService("takeoff", &GeoController::takeoff, this);
         m_serviceLand = nh.advertiseService("land", &GeoController::land, this);
-        dynamics = new dynamicsImpl(n, m_worldFrame, m_bodyFrame);
+//        dynamics = new dynamicsImpl(n, m_worldFrame, m_bodyFrame);
         controllerImpl  = new ControllerImpl(n);
         counter_started = false;
         utils = new geoControllerUtils;
         e3[0] = 0; e3[1] = 0; e3[2] = 1;
-        ROS_INFO("################GeoController Initialized!!\n");
+        ROS_INFO("######GeoController Initialized!!######\n");
 
     };
 
@@ -55,6 +56,7 @@ public:
                 tf::StampedTransform transform;
                 ROS_INFO("In taking off. thrust: %f\n",m_thrust);
                 m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
+
                 if (transform.getOrigin().z() > m_startZ + 0.5 || m_thrust > 50000)
 
                 {
@@ -132,21 +134,23 @@ public:
             }
                 break;
             case Idle: {
+                tf::StampedTransform transform;
+//                m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
                 float dt = e.current_real.toSec() - e.last_real.toSec();
                 if(dt > 1)
                     dt = 0.02;
-                dynamics->setdt(dt);
-                Matrix3d temp_R = dynamics->getR();
-                std::cout << "R: \n"<<temp_R<<"\n";
+//                dynamics->setdt(dt);
+//                Matrix3d temp_R = dynamics->getR();
+//                std::cout << "R: \n"<<temp_R<<"\n";
                 geometry_msgs::Twist msg;
-                if(temp_R.minCoeff() != 0) {
-                    ROS_INFO("Reading from IMU. Ready to fly.");
+//                if(temp_R.minCoeff() != 0) {
+//                    ROS_INFO("Reading from IMU. Ready to fly.");
                     msg.linear.x = 11000;
                     msg.linear.y = 11000;
                     msg.linear.z = 11000;
                     msg.angular.x = 11000;
-                }
-                m_pubNav.publish(msg);
+//                }
+                m_pubThrust.publish(msg);
             }
                 break;
         }
@@ -156,6 +160,7 @@ public:
 private:
     State m_state;
     ros::Publisher m_pubNav;
+    ros::Publisher m_pubThrust;
     std::string m_worldFrame;
     std::string m_bodyFrame;
     ros::ServiceServer m_serviceTakeoff;
@@ -202,7 +207,7 @@ int main(int argc, char **argv) {
     double frequency;
     n.param("frequency", frequency, 50.0);
 
-    ROS_INFO("### Initializing geoController. worldFrame:%s bodyFrame %s\n",worldFrame.data(), frame.data());
+    ROS_INFO("### Initializing geoController. worldFrame:%s bodyFrame: %s\n",worldFrame.data(), frame.data());
 
     GeoController controller(worldFrame, frame, n);
     controller.run(frequency);

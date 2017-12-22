@@ -25,7 +25,7 @@ public:
             worldFrame(worldFrame),
             bodyFrame(bodyFrame) {
         n.getParam("/crazyflie//crazyflie_add/tf_prefix", tf_prefix);
-        ROS_INFO("### Initialized dynamicsImpl worldFrame:%s bodyFrame%s\n", worldFrame.data(), bodyFrame.data());
+        ROS_INFO("### Initialized dynamicsImpl worldFrame:%s bodyFrame:%s\n", worldFrame.data(), bodyFrame.data());
         transformListener.waitForTransform(worldFrame, bodyFrame, ros::Time(0), ros::Duration(10.0));
 
         ros::NodeHandle nh;
