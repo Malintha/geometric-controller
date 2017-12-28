@@ -145,12 +145,12 @@ public:
                 geometry_msgs::Twist msg;
 //                if(temp_R.minCoeff() != 0) {
 //                    ROS_INFO("Reading from IMU. Ready to fly.");
-                    msg.linear.x = 11000;
-                    msg.linear.y = 11000;
-                    msg.linear.z = 11000;
-                    msg.angular.x = 11000;
+                    msg.linear.x = 50000;
+                    msg.linear.y = 50000;
+                    msg.linear.z = 50000;
+                    msg.angular.x = 50000;
 //                }
-                m_pubThrust.publish(msg);
+//                m_pubThrust.publish(msg);
             }
                 break;
         }

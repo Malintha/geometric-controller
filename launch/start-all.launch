@@ -1,5 +1,5 @@
 <launch>
-    <arg name="uri" default="radio://0/80/250K/E7E7E7E7E7" />
+    <arg name="uri" default="radio://0/80/250K" />
     <arg name="frame" default="vicon/crazyflie_1/crazyflie_1"/>
     <arg name="joy_dev" default="/dev/input/js0" />
 
