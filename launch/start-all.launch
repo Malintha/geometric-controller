@@ -7,11 +7,22 @@
     </include>
 
     <group ns="crazyflie">
-        <include file="$(find crazyflie_driver)/launch/crazyflie_add.launch">
-            <arg name="uri" value="$(arg uri)" />
-            <arg name="tf_prefix" value="crazyflie" />
-            <arg name="enable_logging" value="True" />
-        </include>
+        <!--<include file="$(find crazyflie_driver)/launch/crazyflie_add.launch">-->
+            <!--<arg name="uri" value="$(arg uri)" />-->
+            <!--<arg name="tf_prefix" value="crazyflie" />-->
+            <!--<arg name="enable_logging" value="True" />-->
+        <!--</include>-->
+
+        <node pkg="crazyflie_driver" type="crazyflie_add" name="crazyflie_add" output="screen">
+            <param name="uri" value="$(arg uri)" />
+            <param name="tf_prefix" value="crazyflie" />
+            <!--<arg name="enable_logging" value="True" />-->
+            <rosparam>
+                genericLogTopics: ["log1", "log2"]
+                genericLogTopicFrequencies: [10, 100]
+                genericLogTopic_log1_Variables: ["motorValues1.m1","motorValues1.m2","motorValues1.m3","motorValues1.m4","motorValues1.size"]
+            </rosparam>
+        </node>
 
         <node name="joy" pkg="joy" type="joy_node" output="screen">
             <param name="dev" value="$(arg joy_dev)" />
@@ -24,6 +35,10 @@
         <include file="$(find geo_controller)/launch/geo_controller.launch">
             <arg name="frame" value="$(arg frame)" />
         </include>
+
+        <!--<include file="$(find geo_controller)/launch/readCustomLogs.launch">-->
+            <!--<arg name="uri" value="$(arg uri)" />-->
+        <!--</include>-->
 
         <!--<node name="pose" pkg="crazyflie_demo" type="publish_pose.py" output="screen">-->
         <!--<param name="name" value="goal" />-->
@@ -41,6 +56,6 @@
 
     <!-- run rviz -->
     <param name="robot_description" command="$(find xacro)/xacro.py $(find crazyflie_description)/urdf/crazyflie.urdf.xacro" />
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find crazyflie_demo)/launch/crazyflie_pos.rviz" required="true" />
+    <!--<node name="rviz" pkg="rviz" type="rviz" args="-d $(find crazyflie_demo)/launch/crazyflie_pos.rviz" required="true" />-->
 
 </launch>
