@@ -104,6 +104,6 @@ private:
     Vector3d x_arr[5];
     geoControllerUtils *utils;
     bool IMUreceive = false;
-
+    ros::Publisher debug_coeffs;
 };
 

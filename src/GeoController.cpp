@@ -18,20 +18,20 @@ class GeoController {
 
 public:
     GeoController(const std::string &worldFrame, const std::string &frame,
-                  const ros::NodeHandle &n) : m_serviceTakeoff(), m_serviceLand(), m_state(Idle), m_thrust(0),
-                                              m_startZ(-1.0), m_worldFrame(worldFrame), m_bodyFrame(frame) {
+                  const ros::NodeHandle &n) : m_serviceTakeoff(), m_serviceLand(), m_state(Automatic), m_thrust(0),
+                                              m_startZ(0), m_worldFrame(worldFrame), m_bodyFrame(frame) {
         ros::NodeHandle nh;
-//        m_listener.waitForTransform(m_worldFrame, m_bodyFrame, ros::Time(0), ros::Duration(10.0));
+        m_listener.waitForTransform(m_worldFrame, m_bodyFrame, ros::Time(0), ros::Duration(10.0));
         m_pubNav = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
         m_pubThrust = nh.advertise<geometry_msgs::Twist>("cmd_thrust", 1);
         m_serviceTakeoff = nh.advertiseService("takeoff", &GeoController::takeoff, this);
         m_serviceLand = nh.advertiseService("land", &GeoController::land, this);
-//        dynamics = new dynamicsImpl(n, m_worldFrame, m_bodyFrame);
+        dynamics = new dynamicsImpl(n, m_worldFrame, m_bodyFrame);
         controllerImpl  = new ControllerImpl(n);
         counter_started = false;
         utils = new geoControllerUtils;
         e3[0] = 0; e3[1] = 0; e3[2] = 1;
-        ROS_INFO("######GeoController Initialized!!######\n");
+        ROS_INFO("################GeoController Initialized!!\n");
 
     };
 
@@ -56,21 +56,31 @@ public:
                 tf::StampedTransform transform;
                 ROS_INFO("In taking off. thrust: %f\n",m_thrust);
                 m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
+                ROS_INFO("In taking off. z: %f thrust: %f\n",transform.getOrigin().z(),m_thrust);
 
-                if (transform.getOrigin().z() > m_startZ + 0.5 || m_thrust > 50000)
+                if (transform.getOrigin().z() > m_startZ + 0.25 || m_thrust > 50000)
 
                 {
                     m_state = Automatic;
                 }
                 else
                 {
-                    m_thrust += 10000 * 0.01;
-//                    if(m_thrust>50000)
-//                        m_thrust = 45000;
                     geometry_msgs::Twist msg;
+
+
+                    m_pubThrust.publish(msg);
+
+                    m_thrust += 10000 * 0.01;
+                    if(m_thrust>50000)
+                        m_thrust = 50000;
+
+                    msg.linear.x = m_thrust;
+                    msg.linear.y = m_thrust;
                     msg.linear.z = m_thrust;
+                    msg.angular.x = m_thrust;
+
                     std::cout<<"taking off: thrust: "<<m_thrust<<" z: "<<transform.getOrigin().z()<<"\n";
-                    m_pubNav.publish(msg);
+                    m_pubThrust.publish(msg);
                 }
             }
                 break;
@@ -100,36 +110,40 @@ public:
                 forceVec[0] = 0; forceVec[2] = 0; forceVec[2] = 0;
 
                 Vector3d momentVec;
+                Vector4d mot_force_vec;
                 momentVec[0] = 0; momentVec[2] = 0; momentVec[2] = 0;
-
-                if (R.minCoeff() != 0) {
-
+                mot_force_vec[0] = 0; mot_force_vec[1] = 0; mot_force_vec[2] = 0; mot_force_vec[3] = 0;
+                if (R.minCoeff() < 0) {
+//                    std::cout<<R<<std::endl<<std::endl;
                     t_frame += dt;
-
                     controllerImpl->setDynamicsValues(x,x_dot,R,Omega);
-                    f = controllerImpl->getForceVector(dt,t_frame);
+                    f = controllerImpl->getTotalForce(dt, t_frame);
                     momentVec = controllerImpl->getMomentVector();
-//                    std::cout << "## force Vec: "<<t_frame<<" , "<<forceVec[0]<<","<<forceVec[1]<<","<<forceVec[2]<<std::endl;
+                    Vector4d mot_force_vec = controllerImpl->getMotorForceVector(f, momentVec);
+                    std::cout << "automatic: Totalforce:" << f <<" f1: "<<mot_force_vec[0]<<" f2: "<<mot_force_vec[1]<<" f3: "<<mot_force_vec[2]<<" f4: "<<mot_force_vec[3] << "\n";
 //                    std::cout << "## moment Vec: "<<t_frame<<" , "<<momentVec[0]<<","<<momentVec[1]<<","<<momentVec[2]<<std::endl;
                 }
 
 
-                Vector4d mot_force_vec = controllerImpl->getMotorForceVector(f, momentVec);
-//                mot_force_vec = mot_force_vec/100; //newton to grams
+                // calculate in grams
+
                 double RPM1 = 0; double RPM2 = 0; double RPM3 = 0; double RPM4 = 0;
 
-                 RPM1 = utils->getTargetRPM(mot_force_vec[0]);
-                 RPM2 = utils->getTargetRPM(mot_force_vec[1]);
-                 RPM3 = utils->getTargetRPM(mot_force_vec[2]);
-                 RPM4 = utils->getTargetRPM(mot_force_vec[3]);
+                RPM1 = abs(utils->getTargetRPM(mot_force_vec[0]));
+                RPM2 = abs(utils->getTargetRPM(mot_force_vec[1]));
+                RPM3 = abs(utils->getTargetRPM(mot_force_vec[2]));
+                RPM4 = abs(utils->getTargetRPM(mot_force_vec[3]));
 
-//                std::cout << "automatic: Totalforce:" << f <<" f1: "<<mot_force_vec[0]<<" f2: "<<mot_force_vec[1]<<" f3: "<<mot_force_vec[2]<<" f4: "<<mot_force_vec[3] << " rpm1: " << RPM1 << " rpm2: " << RPM2 << " rpm3: "
-//                          << RPM3 << " rpm4: " << RPM4 << "\n";
+
                 Vector3d ex = controllerImpl->getEx();
 //                std::cout << "eX: "<<ex.norm()<<"\n";
-                std::cout << "Rotational error: "<<controllerImpl->getAttitudeError()<<"\n";
+//                std::cout << "Rotational error: "<<controllerImpl->getAttitudeError()<<"\n";
                 geometry_msgs::Twist msg;
-//                m_pubNav.publish(msg);
+                msg.linear.x = RPM1;
+                msg.linear.y = RPM2;
+                msg.linear.z = RPM3;
+                msg.angular.x = RPM4;
+//                m_pubThrust.publish(msg);
 
             }
                 break;
@@ -145,10 +159,10 @@ public:
                 geometry_msgs::Twist msg;
 //                if(temp_R.minCoeff() != 0) {
 //                    ROS_INFO("Reading from IMU. Ready to fly.");
-                    msg.linear.x = 15000;
-                    msg.linear.y = 11000;
-                    msg.linear.z = 15000;
-                    msg.angular.x = 13000;
+                msg.linear.x = 0;
+                msg.linear.y = 0;
+                msg.linear.z = 0;
+                msg.angular.x = 0;
 //                }
                 m_pubThrust.publish(msg);
             }
@@ -201,7 +215,7 @@ int main(int argc, char **argv) {
 
     static ros::NodeHandle n("~");
     std::string worldFrame;
-    n.param<std::string>("worldFrame", worldFrame, "/world");
+    n.param<std::string>("/crazyflie/geocontroller/worldFrame", worldFrame, "/world");
     std::string frame;
     n.getParam("/crazyflie/geocontroller/frame", frame);
     double frequency;

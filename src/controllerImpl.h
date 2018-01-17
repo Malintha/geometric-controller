@@ -11,6 +11,7 @@
 #include <eigen3/Eigen/Dense>
 #include "ros/ros.h"
 #include "geoControlllerUtils.h"
+#include "std_msgs/String.h"
 
 using namespace Eigen;
 
@@ -30,9 +31,13 @@ public:
         e1[1] = e1[2] = e2[0] = e2[2] = e3[0] = e3[1] = 1;
 
         // set values from the yaml file
-        J[0] = utils.get(n, "uav/J/J1");
-        J[1] = utils.get(n, "uav/J/J2");
-        J[2] = utils.get(n, "uav/J/J3");
+        float j11 = utils.get(n, "uav/J/J1");
+        float j22 = utils.get(n, "uav/J/J2");
+        float j33 = utils.get(n, "uav/J/J3");
+        J << j11, 0, 0,
+            0, j22, 0,
+            0, 0, j33;
+
         m = utils.get(n, "uav/m");
         d = utils.get(n, "uav/d");
         ctf = utils.get(n, "uav/ctf");
@@ -56,6 +61,9 @@ public:
                 utils.get(n, "trajectory/R0/R0_r3/r3_1"), utils.get(n, "trajectory/R0/R0_r3/r3_2"), utils.get(n, "trajectory/R0/R0_r3/r3_3");
         Omega0 << utils.get(n, "trajectory/Omega0/Omega01"), utils.get(n, "trajectory/Omega0/Omega02"), utils.get(n, "trajectory/Omega0/Omega03");
 
+        ros::NodeHandle nh;
+        debug_coeffs = nh.advertise<std_msgs::String>("geo_debug_coeffs", 1000);
+
     }
 
     void setDynamicsValues(Vector3d x, Vector3d v, Matrix3d R, Vector3d Omega) {
@@ -76,7 +84,7 @@ public:
      * @param e
      * @return
      */
-    double getForceVector(float dt, double time_frame) {
+    double getTotalForce(float dt, double time_frame) {
         t_frame = time_frame;
 
         this->dt = dt;
@@ -89,15 +97,21 @@ public:
 
         //calculate the force vector
         Vector3d f_temp = -(-kx * ex - kv * ev - m * g * e3 + m * xddot_d);
+        std_msgs::String msg;
+        std::stringstream ss;
+        ss << "kx: "<<kx<<" ex: "<<ex<<" kv: "<<kv<<" ev: "<<ev<<" m: "<<m<<" g "<<g<<" e3: "<<e3<<" xddot_d: "<<xddot_d;
+        msg.data = ss.str();
+        debug_coeffs.publish(msg);
         Vector3d Re3 = R * e3;
         double f = f_temp.dot(Re3);
+        std::cout<<"f: "<<f<<std::endl;
         return f;
     }
 
     Vector3d getMomentVector() {
         Matrix3d Omega_hat = utils.getSkewSymmetricMap(Omega);
-        M = -kr * eR - kOmega * eOmega + Omega.cross(J.cwiseProduct(Omega)) -
-            J.cwiseProduct((Omega_hat * Eigen::Transpose<Matrix3d>(R) * R_d) * Omega_d -
+        M = -kr * eR - kOmega * eOmega + Omega.cross(J*Omega) -
+            J*((Omega_hat * Eigen::Transpose<Matrix3d>(R) * R_d) * Omega_d -
                            (Eigen::Transpose<Matrix3d>(R) * R_d) * Omega_dot_d);
         return M;
     }
@@ -138,19 +152,30 @@ public:
 
     void calculate_x_desired() {
 //        ROS_INFO("##### t: %f ######\n",this->t_frame);
-        x_d[0] = 0.4 * t_frame;
-        x_d[1] = 0.4 * sin(M_PI * t_frame);
-        x_d[2] = 0.6 * cos(M_PI * t_frame);
+//        x_d[0] = 0.4 * t_frame;
+//        x_d[1] = 0.4 * sin(M_PI * t_frame);
+//        x_d[2] = 0.6 * cos(M_PI * t_frame);
 
-//        std::cout<<t_frame<<" , "<<x_d[0]<<","<<x_d[1]<<","<<x_d[2]<< "\r\n";
+//        xdot_d[0] = 0.4;
+//        xdot_d[1] = 0.4 * cos(M_PI * t_frame);
+//        xdot_d[2] = -0.6 * sin(M_PI * t_frame);
 
-        xdot_d[0] = 0.4;
-        xdot_d[1] = 0.4 * cos(M_PI * t_frame);
-        xdot_d[2] = -0.6 * sin(M_PI * t_frame);
+//        xddot_d[0] = 0;
+//        xddot_d[1] = -0.4 * sin(M_PI * t_frame);
+//        xddot_d[2] = -0.6 * cos(M_PI * t_frame);
+
+        x_d[0] = 0;
+        x_d[1] = 0;
+        x_d[2] = 0.1*t_frame;
+
+        xdot_d[0] = 0;
+        xdot_d[1] = 0;
+        xdot_d[2] = 0.1;
 
         xddot_d[0] = 0;
-        xddot_d[1] = -0.4 * sin(M_PI * t_frame);
-        xddot_d[2] = -0.6 * cos(M_PI * t_frame);
+        xddot_d[1] = 0;
+        xddot_d[2] = 0;
+
     }
 
     Vector4d getMotorForceVector(double totForce, Vector3d momentVec){
@@ -206,7 +231,7 @@ private:
     Vector3d eOmega;
 
     // drone specific and controller specific values
-    Vector3d J;
+    Matrix3d J;
     float m;
     float d;
     float ctf;
@@ -232,5 +257,6 @@ private:
     geoControllerUtils utils;
     Matrix4d coeffMat;
     Matrix4d inv_coeffMat;
+    ros::Publisher debug_coeffs;
 
 };
