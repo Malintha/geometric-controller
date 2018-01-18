@@ -99,12 +99,12 @@ public:
         Vector3d f_temp = -(-kx * ex - kv * ev - m * g * e3 + m * xddot_d);
         std_msgs::String msg;
         std::stringstream ss;
-        ss << "kx: "<<kx<<" ex: "<<ex<<" kv: "<<kv<<" ev: "<<ev<<" m: "<<m<<" g "<<g<<" e3: "<<e3<<" xddot_d: "<<xddot_d;
-        msg.data = ss.str();
-        debug_coeffs.publish(msg);
         Vector3d Re3 = R * e3;
         double f = f_temp.dot(Re3);
-        std::cout<<"f: "<<f<<std::endl;
+
+        ss << "kx: "<<kx<<" ex: "<<ex<<" kv: "<<kv<<" ev: "<<ev<<" m: "<<m<<" g "<<g<<" e3: "<<e3<<" xddot_d: "<<xddot_d<<"f: "<<f;
+        msg.data = ss.str();
+        debug_coeffs.publish(msg);
         return f;
     }
 

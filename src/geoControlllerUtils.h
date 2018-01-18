@@ -47,10 +47,14 @@ public:
     double getTargetRPM(double targetThrust) {
         double x0, x1, y0, y1, targetRPM, targetThrust1;
         targetRPM = 0;
-        targetThrust1 = 0;
+        targetThrust1 = abs(targetThrust);
+
+
+        if(targetThrust1 > 57)
+            targetThrust1 = 57;
+
         if(targetThrust != 0) {
-            if(targetThrust < 0)
-                targetThrust1 = -targetThrust;
+
             std::map<double, double>::iterator it = thrustRPMMap.begin();
             for (it = thrustRPMMap.begin(); it != thrustRPMMap.end(); ++it) {
                 if (it->first > targetThrust1) {
@@ -64,8 +68,8 @@ public:
             }
             targetRPM = x1 - (((y1 - targetThrust1) * (x1 - x0)) / (y1 - y0));
         }
-        if (targetThrust < 0)
-            targetRPM = -targetRPM;
+//        if (targetThrust < 0)
+//            targetRPM = -targetRPM;
         return targetRPM;
     }
 
