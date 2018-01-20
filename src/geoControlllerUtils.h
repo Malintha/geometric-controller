@@ -10,6 +10,8 @@
 
 #include <eigen3/Eigen/Dense>
 #include <ros/node_handle.h>
+#include <std_msgs/Float32.h>
+#include <std_msgs/Int16.h>
 
 using namespace Eigen;
 
@@ -17,23 +19,18 @@ using namespace Eigen;
 class geoControllerUtils {
 public:
     geoControllerUtils() {
-        thrustRPMMap.insert(std::pair<double, double >(0.0,0));
-        thrustRPMMap.insert(std::pair<double, double >(1.6,4485));
-        thrustRPMMap.insert(std::pair<double, double >(4.8,7570));
-        thrustRPMMap.insert(std::pair<double, double >(7.9,9374));
-        thrustRPMMap.insert(std::pair<double, double >(10.9,10885));
-        thrustRPMMap.insert(std::pair<double, double >(13.9,12277));
-        thrustRPMMap.insert(std::pair<double, double >(17.3,13522));
-        thrustRPMMap.insert(std::pair<double, double >(21.0,14691));
-        thrustRPMMap.insert(std::pair<double, double >(24.4,15924));
-        thrustRPMMap.insert(std::pair<double, double >(28.6,17174));
-        thrustRPMMap.insert(std::pair<double, double >(32.8,18179));
-        thrustRPMMap.insert(std::pair<double, double >(37.3,19397));
-        thrustRPMMap.insert(std::pair<double, double >(41.7,20539));
-        thrustRPMMap.insert(std::pair<double, double >(46.0, 21692));
-        thrustRPMMap.insert(std::pair<double, double >(51.9,22598));
-        thrustRPMMap.insert(std::pair<double, double >(57.9,23882));
 
+        m_geo_debug_f1 = nh.advertise<std_msgs::Float32>("geo_debug_f1", 10);
+        m_geo_debug_f2 = nh.advertise<std_msgs::Float32>("geo_debug_f2", 10);
+        m_geo_debug_f3 = nh.advertise<std_msgs::Float32>("geo_debug_f3", 10);
+        m_geo_debug_f4 = nh.advertise<std_msgs::Float32>("geo_debug_f4", 10);
+
+        m_geo_debug_r1 = nh.advertise<std_msgs::Int16>("geo_debug_ratio_m1", 10);
+        m_geo_debug_r2 = nh.advertise<std_msgs::Int16>("geo_debug_ratio_m2", 10);
+        m_geo_debug_r3 = nh.advertise<std_msgs::Int16>("geo_debug_ratio_m3", 10);
+        m_geo_debug_r4 = nh.advertise<std_msgs::Int16>("geo_debug_ratio_m4", 10);
+
+        m_geo_debug_totalthrust = nh.advertise<std_msgs::Float32>("geo_debug_totalthrust", 10);
     }
 
     double get(const ros::NodeHandle &n, const std::string &name) {
@@ -44,32 +41,16 @@ public:
         return value;
     }
 
-    double getTargetRPM(double targetThrust) {
-        double x0, x1, y0, y1, targetRPM, targetThrust1;
-        targetRPM = 0;
-        targetThrust1 = abs(targetThrust);
+    double getTargetRatio(double targetThrust) {
+//        double targetthrust1;
+        //todo: make negative thrusts 0s?
+        targetThrust < 0 ? targetThrust = 0 : targetThrust;
 
+        double targetRPM = (targetThrust*100*1092.26);
+//        std::cout<<"target thrust: "<<targetThrust<<" targetRPM: "<<targetRPM<<std::endl;
 
-        if(targetThrust1 > 57)
-            targetThrust1 = 57;
-
-        if(targetThrust != 0) {
-
-            std::map<double, double>::iterator it = thrustRPMMap.begin();
-            for (it = thrustRPMMap.begin(); it != thrustRPMMap.end(); ++it) {
-                if (it->first > targetThrust1) {
-                    std::map<double, double>::iterator it_prev = it--;
-                    y0 = it_prev->first;
-                    x0 = it_prev->second;
-                    y1 = it->first;
-                    x1 = it->second;
-                    break;
-                }
-            }
-            targetRPM = x1 - (((y1 - targetThrust1) * (x1 - x0)) / (y1 - y0));
-        }
-//        if (targetThrust < 0)
-//            targetRPM = -targetRPM;
+        if (targetRPM > 65500)
+            targetRPM = 65500;
         return targetRPM;
     }
 
@@ -117,11 +98,51 @@ public:
         return &v0;
     }
 
+    void publishThrusts(float thrust, int motorId){
+        msg_f.data = thrust;
+        if(motorId == 0)
+            m_geo_debug_f1.publish(msg_f);
+        else if(motorId == 1)
+            m_geo_debug_f2.publish(msg_f);
+        else if (motorId == 2)
+            m_geo_debug_f3.publish(msg_f);
+        else if (motorId == 3)
+            m_geo_debug_f4.publish(msg_f);
+        else
+            m_geo_debug_totalthrust.publish(msg_f);
+    }
+
+    void publishMotorRatios(float motorRatio, int motorId){
+        msg_r.data = motorRatio;
+        if(motorId == 1)
+            m_geo_debug_r1.publish(msg_r);
+        else if(motorId == 2)
+            m_geo_debug_r2.publish(msg_r);
+        else if (motorId == 3)
+            m_geo_debug_r3.publish(msg_r);
+        else if (motorId == 4)
+            m_geo_debug_r4.publish(msg_r);
+    }
+
 private:
     Vector3d x0;
     Vector3d v0;
     Matrix3d R0;
     Vector3d Omega0;
-    std::map<double,double> thrustRPMMap;
+    ros::NodeHandle nh;
+    ros::Publisher m_geo_debug_f1;
+    ros::Publisher m_geo_debug_f2;
+    ros::Publisher m_geo_debug_f3;
+    ros::Publisher m_geo_debug_f4;
+
+    ros::Publisher m_geo_debug_r1;
+    ros::Publisher m_geo_debug_r2;
+    ros::Publisher m_geo_debug_r3;
+    ros::Publisher m_geo_debug_r4;
+
+    ros::Publisher m_geo_debug_totalthrust;
+    std_msgs::Float32 msg_f;
+    std_msgs::Int16 msg_r;
+
 };
 

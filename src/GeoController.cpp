@@ -18,14 +18,12 @@ class GeoController {
 
 public:
     GeoController(const std::string &worldFrame, const std::string &frame,
-                  const ros::NodeHandle &n) : m_serviceTakeoff(), m_serviceLand(), m_state(Idle), m_thrust(0),
+                  const ros::NodeHandle &n) : m_serviceTakeoff(), m_serviceLand(), m_state(Automatic), m_thrust(0),
                                               m_startZ(0), m_worldFrame(worldFrame), m_bodyFrame(frame) {
         ros::NodeHandle nh;
-        m_listener.waitForTransform(m_worldFrame, m_bodyFrame, ros::Time(0), ros::Duration(10.0));
+//        m_listener.waitForTransform(m_worldFrame, m_bodyFrame, ros::Time(0), ros::Duration(10.0));
         m_pubNav = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
         m_pubThrust = nh.advertise<geometry_msgs::Twist>("cmd_thrust", 1);
-        m_geo_debug_thrusts = nh.advertise<std_msgs::String>("geo_debug_thrusts", 1000);
-        m_geo_debuug_rpms = nh.advertise<std_msgs::String>("geo_debug_rpms", 1000);
 
         m_serviceTakeoff = nh.advertiseService("takeoff", &GeoController::takeoff, this);
         m_serviceLand = nh.advertiseService("land", &GeoController::land, this);
@@ -61,7 +59,7 @@ public:
                 m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
                 ROS_INFO("In taking off. z: %f thrust: %f\n",transform.getOrigin().z(),m_thrust);
 
-                if (transform.getOrigin().z() > m_startZ + 0.25 || m_thrust > 50000)
+                if (transform.getOrigin().z() > m_startZ + 0.07)
 
                 {
                     m_state = Automatic;
@@ -69,8 +67,6 @@ public:
                 else
                 {
                     geometry_msgs::Twist msg;
-
-
                     m_pubThrust.publish(msg);
 
                     m_thrust += 10000 * 0.01;
@@ -88,14 +84,21 @@ public:
             }
                 break;
             case Landing: {
-                m_goal.pose.position.z = m_startZ + 0.05;
-                tf::StampedTransform transform;
-                m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
-                if (transform.getOrigin().z() <= m_startZ + 0.05) {
-                    m_state = Idle;
-                    geometry_msgs::Twist msg;
-                    m_pubNav.publish(msg);
-                }
+//                m_goal.pose.position.z = m_startZ + 0.05;
+//                tf::StampedTransform transform;
+//                m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
+//                if (transform.getOrigin().z() <= m_startZ + 0.05) {
+//                    m_state = Idle;
+//                    geometry_msgs::Twist msg;
+//                    m_pubNav.publish(msg);
+//                }
+                geometry_msgs::Twist msg;
+                msg.linear.x = 0;
+                msg.linear.y = 0;
+                msg.linear.z = 0;
+                msg.angular.x = 0;
+                m_pubThrust.publish(msg);
+
             }
 
             case Automatic: {
@@ -118,61 +121,59 @@ public:
                 mot_force_vec[0] = 0; mot_force_vec[1] = 0; mot_force_vec[2] = 0; mot_force_vec[3] = 0;
                 double RPM1 = 0; double RPM2 = 0; double RPM3 = 0; double RPM4 = 0;
 
-                std_msgs::String msg_debug;
-                std::stringstream ss;
 
                 if (R.minCoeff() < 0) {
-//                    std::cout<<R<<std::endl<<std::endl;
                     t_frame += dt;
                     controllerImpl->setDynamicsValues(x,x_dot,R,Omega);
                     f = controllerImpl->getTotalForce(dt, t_frame);
                     momentVec = controllerImpl->getMomentVector();
-                    Vector4d mot_force_vec = controllerImpl->getMotorForceVector(f, momentVec);
+                    mot_force_vec = controllerImpl->getMotorForceVector(f, momentVec);
 
-//                    ss << "automatic: Totalforce:" << f <<" f1: "<<mot_force_vec[0]<<" f2: "<<mot_force_vec[1]<<" f3: "<<mot_force_vec[2]<<" f4: "<<mot_force_vec[3] << "\n";
-//                    msg.data = ss.str();
-//                    m_geo_debug_thrusts.publish(msg);
+                    RPM1 = utils->getTargetRatio(mot_force_vec[0]);
+                    RPM2 = utils->getTargetRatio(mot_force_vec[1]);
+                    RPM3 = utils->getTargetRatio(mot_force_vec[2]);
+                    RPM4 = utils->getTargetRatio(mot_force_vec[3]);
 
-                    RPM1 = utils->getTargetRPM(mot_force_vec[0]);
-                    RPM2 = utils->getTargetRPM(mot_force_vec[1]);
-                    RPM3 = utils->getTargetRPM(mot_force_vec[2]);
-                    RPM4 = utils->getTargetRPM(mot_force_vec[3]);
+                    for(int i =0 ; i<4 ; i++)
+                        utils->publishThrusts(mot_force_vec[i],i);
+                    utils->publishThrusts(f,4);
+
+                    std::cout<<"\nMotorRatios: "<<RPM1<<" "<<RPM2<<" "<<RPM3<<" "<<RPM4<<"\n";
+
+                    utils->publishMotorRatios(RPM1,1);
+                    utils->publishMotorRatios(RPM2,2);
+                    utils->publishMotorRatios(RPM3,3);
+                    utils->publishMotorRatios(RPM4,4);
+
+                    geometry_msgs::Twist msg;
+                    msg.linear.x = RPM4;
+                    msg.linear.y = RPM1;
+                    msg.linear.z = RPM2;
+                    msg.angular.x = RPM3;
+
+                    m_pubThrust.publish(msg);
 
                 }
-
-//                Vector3d ex = controllerImpl->getEx();
-//                std::cout << "Rotational error: "<<controllerImpl->getAttitudeError()<<"\n";
-                ss << "RPM1: "<<RPM1<<" RPM2: "<<RPM2<<" RPM3: "<<RPM3<<" RPM4: "<<RPM4 << "\n";
-                msg_debug.data = ss.str();
-                m_geo_debuug_rpms.publish(msg_debug);
-
-                geometry_msgs::Twist msg;
-                msg.linear.x = RPM2;
-                msg.linear.y = RPM3;
-                msg.linear.z = RPM4;
-                msg.angular.x = RPM1;
-                m_pubThrust.publish(msg);
-
             }
                 break;
             case Idle: {
-                tf::StampedTransform transform;
+//                tf::StampedTransform transform;
 //                m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
-                float dt = e.current_real.toSec() - e.last_real.toSec();
-                if(dt > 1)
-                    dt = 0.02;
-//                dynamics->setdt(dt);
-//                Matrix3d temp_R = dynamics->getR();
-//                std::cout << "R: \n"<<temp_R<<"\n";
-                geometry_msgs::Twist msg;
-//                if(temp_R.minCoeff() != 0) {
-//                    ROS_INFO("Reading from IMU. Ready to fly.");
-                msg.linear.x = 25000;
-                msg.linear.y = 0;
-                msg.linear.z = 25000;
-                msg.angular.x = 0;
-//                }
-                m_pubThrust.publish(msg);
+//                float dt = e.current_real.toSec() - e.last_real.toSec();
+//                if(dt > 1)
+//                    dt = 0.02;
+////                dynamics->setdt(dt);
+////                Matrix3d temp_R = dynamics->getR();
+////                std::cout << "R: \n"<<temp_R<<"\n";
+//                geometry_msgs::Twist msg;
+////                if(temp_R.minCoeff() != 0) {
+////                    ROS_INFO("Reading from IMU. Ready to fly.");
+//                msg.linear.x = 0;
+//                msg.linear.y = 0;
+//                msg.linear.z = 0;
+//                msg.angular.x = 10000;
+////                }
+//                m_pubThrust.publish(msg);
             }
                 break;
         }
@@ -199,8 +200,6 @@ private:
     bool counter_started;
     geoControllerUtils* utils;
     Vector3d e3;
-    ros::Publisher m_geo_debug_thrusts;
-    ros::Publisher m_geo_debuug_rpms;
 
     bool takeoff(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res) {
         ROS_INFO("Takeoff requested!");

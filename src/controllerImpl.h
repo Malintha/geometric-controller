@@ -97,6 +97,7 @@ public:
 
         //calculate the force vector
         Vector3d f_temp = -(-kx * ex - kv * ev - m * g * e3 + m * xddot_d);
+//        std::cout<<"m * g * e3 : "<<m * g * e3 <<"\n"<<" m * xddot_d: "<<m * xddot_d<<std::endl;
         std_msgs::String msg;
         std::stringstream ss;
         Vector3d Re3 = R * e3;
@@ -109,6 +110,9 @@ public:
     }
 
     Vector3d getMomentVector() {
+
+        std::cout<<"eR: "<<eR[0]<<" , "<<eR[1]<<" , "<<eR[2]<<" eOmega: "<<eOmega[0]<<" , "<<eOmega[1]<<" , "<<eOmega[2]<<std::endl;
+
         Matrix3d Omega_hat = utils.getSkewSymmetricMap(Omega);
         M = -kr * eR - kOmega * eOmega + Omega.cross(J*Omega) -
             J*((Omega_hat * Eigen::Transpose<Matrix3d>(R) * R_d) * Omega_d -
@@ -119,6 +123,7 @@ public:
     void calculate_ex_ev() {
         ex = x - x_d;
         ev = v - xdot_d;
+//        std::cout<<"ex: "<<ex[0]<<" , "<<ex[1]<<" , "<<ex[2]<<" ev: "<<ev[0]<<" , "<<ev[1]<<" , "<<ev[2]<<std::endl;
     }
 
     Vector3d getEx() {
@@ -129,6 +134,7 @@ public:
         Matrix3d eR_temp = 0.5 * (Eigen::Transpose<Matrix3d>(R_d) * R - Eigen::Transpose<Matrix3d>(R) * R_d);
         eR = utils.getVeeMap(eR_temp);
         eOmega = Omega - Eigen::Transpose<Matrix3d>(R) * R_d * Omega_d;
+//        std::cout<<"Omega: "<<Omega[0]<<" , "<<Omega[1]<<" , "<<Omega[2]<<" Omega_d: "<<Omega_d[0]<<" , "<<Omega_d[1]<<" , "<<Omega_d[2]<<std::endl;
     }
 
 
@@ -139,13 +145,16 @@ public:
         Vector3d b2_d_nume = b3_d.cross(b1_d);
         b2_d = b2_d_nume / b2_d_nume.norm();
         R_d << b2_d.cross(b3_d), b2_d, b3_d;
-        R_dot_d = (R_d - prev_R_d) / dt;
 
+        // todo: divide by dt or 1
+        R_dot_d = (R_d - prev_R_d) / 1;
+        std::cout<<"R_dot_d:\n"<<R_dot_d<<"\n";
     }
 
     void calculate_Omega_desired() {
-        Matrix3d inv_prev_R_d = Eigen::Inverse<Matrix3d>(prev_R_d);
-        Omega_d = utils.getVeeMap(R_dot_d * inv_prev_R_d);
+        Matrix3d inv_prev_R_d = prev_R_d.transpose();
+
+        Omega_d = utils.getVeeMap(inv_prev_R_d*R_dot_d);
         Omega_dot_d = (Omega_d - prev_Omega_d) / dt;
         prev_Omega_d = Omega_d;
     }
@@ -166,11 +175,11 @@ public:
 
         x_d[0] = 0;
         x_d[1] = 0;
-        x_d[2] = 0.1*t_frame;
+        x_d[2] = 0.05*t_frame;
 
         xdot_d[0] = 0;
         xdot_d[1] = 0;
-        xdot_d[2] = 0.1;
+        xdot_d[2] = 0.05;
 
         xddot_d[0] = 0;
         xddot_d[1] = 0;
@@ -182,6 +191,8 @@ public:
         Vector4d f_m_vec(4,1);
         Vector4d mot_force_vec(4,1);
         f_m_vec << totForce, momentVec[0], momentVec[1], momentVec[2];
+
+        std::cout<<"inv_coeffMat:\n"<<inv_coeffMat<<"\nf_m_vec: "<<f_m_vec<<"\n";
         mot_force_vec = inv_coeffMat*f_m_vec;
         return mot_force_vec;
     }
@@ -195,7 +206,6 @@ public:
 private:
     ros::NodeHandle n;
     float dt;
-//    float t;
     double t_frame;
 
     // desired parameters
