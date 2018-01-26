@@ -36,7 +36,7 @@ public:
         prev_R = utils->getR0();
         prev_x = utils->getX0();
         prev_x_dot = utils->getV0();
-        dt = 0.002;
+        dt = 0.02;
     }
 
     void ImuValRecieved(const sensor_msgs::Imu::ConstPtr &msg) {
@@ -44,6 +44,7 @@ public:
         Omega << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
         IMUreceive = true;
         //angular_velocity.y => forward (pitch), x => roll
+
     }
 
 
@@ -66,12 +67,14 @@ public:
         return x_arr;
     }
 
+    void setR(tfScalar roll, tfScalar pitch, tfScalar yaw) {
+        Vector3d rpy;
+        rpy << roll,pitch, yaw;
+        this->R << utils->getSkewSymmetricMap(rpy);
+    }
+
     Matrix3d getR() {
-        Omega_dot = (Omega - prev_Omega) / dt;
-        Matrix3d Omega_hat = utils->getSkewSymmetricMap(Omega);
-        R = prev_R + dt * utils->getSkewSymmetricMap(Omega) +
-            0.5 * std::pow(dt, 2) * utils->getSkewSymmetricMap(Omega_dot);
-        return R;
+        return this->R;
     }
 
 

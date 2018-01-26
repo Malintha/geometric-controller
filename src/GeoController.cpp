@@ -21,7 +21,7 @@ public:
                   const ros::NodeHandle &n) : m_serviceTakeoff(), m_serviceLand(), m_state(Automatic), m_thrust(0),
                                               m_startZ(0), m_worldFrame(worldFrame), m_bodyFrame(frame) {
         ros::NodeHandle nh;
-//        m_listener.waitForTransform(m_worldFrame, m_bodyFrame, ros::Time(0), ros::Duration(10.0));
+        m_listener.waitForTransform(m_worldFrame, m_bodyFrame, ros::Time(0), ros::Duration(10.0));
         m_pubNav = nh.advertise<geometry_msgs::Twist>("cmd_vel", 1);
         m_pubThrust = nh.advertise<geometry_msgs::Twist>("cmd_thrust", 1);
 
@@ -104,30 +104,52 @@ public:
             case Automatic: {
                 tf::StampedTransform transform;
                 m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
+//                geometry_msgs::PoseStamped targetWorld;
+//                targetWorld.header.stamp = transform.stamp_;
+//                targetWorld.header.frame_id = m_worldFrame;
+//                targetWorld.pose = m_goal.pose; //todo:WHYYY???
+//
+//                geometry_msgs::PoseStamped targetDrone;
+//                m_listener.transformPose(m_bodyFrame, targetWorld, targetDrone);
+
+                tfScalar roll, pitch, yaw;
+                tf::Matrix3x3(tf::Quaternion(
+                            transform.getRotation().x(),
+                            transform.getRotation().y(),
+                            transform.getRotation().z(),
+                            transform.getRotation().w()
+                        )).getRPY(roll,pitch,yaw);
+
+                dynamics->setR(roll, pitch, yaw);
+
+                Matrix3d R = dynamics->getR();
+                std::cout << "R: "<<R<<std::endl;
 
                 dynamics->setdt(dt);
                 Vector3d* x_arr = dynamics->get_x_v_Omega();
                 Vector3d x = x_arr[0];
                 Vector3d x_dot = x_arr[1];
                 Vector3d Omega = x_arr[3];
-                Matrix3d R = dynamics->getR();
+
                 double f;
                 Vector3d forceVec;
-                forceVec[0] = 0; forceVec[2] = 0; forceVec[2] = 0;
-
                 Vector3d momentVec;
                 Vector4d mot_force_vec;
-                momentVec[0] = 0; momentVec[2] = 0; momentVec[2] = 0;
+
+                forceVec[0] = 0; forceVec[1] = 0; forceVec[2] = 0;
+                momentVec[0] = 0; momentVec[1] = 0; momentVec[2] = 0;
                 mot_force_vec[0] = 0; mot_force_vec[1] = 0; mot_force_vec[2] = 0; mot_force_vec[3] = 0;
                 double RPM1 = 0; double RPM2 = 0; double RPM3 = 0; double RPM4 = 0;
-
 
                 if (R.minCoeff() < 0) {
                     t_frame += dt;
                     controllerImpl->setDynamicsValues(x,x_dot,R,Omega);
                     f = controllerImpl->getTotalForce(dt, t_frame);
+
                     momentVec = controllerImpl->getMomentVector();
+                    momentVec[0] = 0; momentVec[1] = 0; momentVec[2] = 0;
                     mot_force_vec = controllerImpl->getMotorForceVector(f, momentVec);
+                    std::cout<<"\nmot_force_vec: "<<mot_force_vec[0]<<" "<<mot_force_vec[1]<<" "<<mot_force_vec[2]<<" "<<mot_force_vec[3]<<"\n";
 
                     RPM1 = utils->getTargetRatio(mot_force_vec[0]);
                     RPM2 = utils->getTargetRatio(mot_force_vec[1]);

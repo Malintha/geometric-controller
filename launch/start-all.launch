@@ -42,9 +42,13 @@
     <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot1"
           args="/crazyflie/geo_debug_f1 /crazyflie/geo_debug_f2 /crazyflie/geo_debug_f3 /crazyflie/geo_debug_f4"/>
 
-    <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot2"
-          args="/crazyflie/geo_debug_ratio_m1 /crazyflie/geo_debug_ratio_m2 /crazyflie/geo_debug_ratio_m3 /crazyflie/geo_debug_ratio_m4"/>
+    <!--<node pkg="rqt_plot" type="rqt_plot" name="rqt_plot2"-->
+          <!--args="/crazyflie/geo_debug_ratio_m1 /crazyflie/geo_debug_ratio_m2 /crazyflie/geo_debug_ratio_m3 /crazyflie/geo_debug_ratio_m4"/>-->
 
     <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot3" args="/crazyflie/geo_debug_totalthrust"/>
+
+    <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot4" args="/crazyflie/geo_debug_er_1 /crazyflie/geo_debug_er_2 /crazyflie/geo_debug_er_3"/>
+
+
 
 </launch>

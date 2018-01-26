@@ -115,15 +115,16 @@ public:
 
         Matrix3d Omega_hat = utils.getSkewSymmetricMap(Omega);
         M = -kr * eR - kOmega * eOmega + Omega.cross(J*Omega) -
-            J*((Omega_hat * Eigen::Transpose<Matrix3d>(R) * R_d) * Omega_d -
-                           (Eigen::Transpose<Matrix3d>(R) * R_d) * Omega_dot_d);
+            J*((Omega_hat * R.transpose() * R_d) * Omega_d -
+                           (R.transpose() * R_d) * Omega_dot_d);
+        std::cout<<"Omega_d: "<< Omega_d[0]<<", "<<Omega_d[1]<<" , "<<Omega_d[2]<<std::endl;
         return M;
     }
 
     void calculate_ex_ev() {
         ex = x - x_d;
         ev = v - xdot_d;
-//        std::cout<<"ex: "<<ex[0]<<" , "<<ex[1]<<" , "<<ex[2]<<" ev: "<<ev[0]<<" , "<<ev[1]<<" , "<<ev[2]<<std::endl;
+        std::cout<<"ex: "<<ex[0]<<" , "<<ex[1]<<" , "<<ex[2]<<" ev: "<<ev[0]<<" , "<<ev[1]<<" , "<<ev[2]<<std::endl;
     }
 
     Vector3d getEx() {
@@ -133,6 +134,9 @@ public:
     void calculate_eR_eOmega() {
         Matrix3d eR_temp = 0.5 * (Eigen::Transpose<Matrix3d>(R_d) * R - Eigen::Transpose<Matrix3d>(R) * R_d);
         eR = utils.getVeeMap(eR_temp);
+        for (int i=0;i<3;i++) {
+            utils.publishEr(eR[i],i);
+        }
         eOmega = Omega - Eigen::Transpose<Matrix3d>(R) * R_d * Omega_d;
 //        std::cout<<"Omega: "<<Omega[0]<<" , "<<Omega[1]<<" , "<<Omega[2]<<" Omega_d: "<<Omega_d[0]<<" , "<<Omega_d[1]<<" , "<<Omega_d[2]<<std::endl;
     }
@@ -141,7 +145,8 @@ public:
     void calculate_Rd() {
         Vector3d b3_d_nume = -kx * ex - kv * ev - m * g * e3 + m * xddot_d;
         b3_d = b3_d_nume / b3_d_nume.norm();
-        b1_d << cos(M_PI * t_frame), sin(M_PI * t_frame), 0;
+//        b1_d << cos(M_PI * t_frame), sin(M_PI * t_frame), 0;
+        b1_d << 1, 0, t_frame;
         Vector3d b2_d_nume = b3_d.cross(b1_d);
         b2_d = b2_d_nume / b2_d_nume.norm();
         R_d << b2_d.cross(b3_d), b2_d, b3_d;
@@ -249,7 +254,7 @@ private:
     float kv;
     float kr;
     float kOmega;
-    static const float g = 8.7;
+    static const float g = -9.5;
 
     // translation vectors
     Vector3d e1;

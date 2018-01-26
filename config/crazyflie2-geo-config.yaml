@@ -4,14 +4,14 @@ uav:
     J2: 1.436e-5
     J3: 2.173e-5
   m: 0.035
-  d: 0.046
+  d: 0.05
   ctf: 0.025134
 
 controller:
-  kx: 0.01
-  kv: 0.01
-  kr: 0.03
-  kOmega: 0.001
+  kx: 16
+  kv: 5
+  kr: 1
+  kOmega: 0.01
 
 trajectory:
   x0:
