@@ -36,6 +36,10 @@ public:
         m_geo_debug_er_2 = nh.advertise<std_msgs::Float32>("geo_debug_er_2", 10);
         m_geo_debug_er_3 = nh.advertise<std_msgs::Float32>("geo_debug_er_3", 10);
 
+        m_geo_debug_roll = nh.advertise<std_msgs::Float32>("geo_debug_roll", 10);
+        m_geo_debug_pitch = nh.advertise<std_msgs::Float32>("geo_debug_pitch", 10);
+        m_geo_debug_yaw = nh.advertise<std_msgs::Float32>("geo_debug_yaw", 10);
+
     }
 
     double get(const ros::NodeHandle &n, const std::string &name) {
@@ -48,12 +52,10 @@ public:
 
     double getTargetRatio(double targetThrust) {
         //todo: make negative thrusts 0s?
-        if (targetThrust < 0)
-            targetThrust = -targetThrust;
-//        targetThrust = abs(targetThrust);
-
-        double targetRPM = (targetThrust*100*1310.62);
-        std::cout<<"target thrust: "<<targetThrust<<" targetRPM: "<<targetRPM<<std::endl;
+        double targetRPM;
+        if (targetThrust > 0)
+            targetRPM = (targetThrust*100*1310.62);
+//        std::cout<<"target thrust: "<<targetThrust<<" targetRPM: "<<targetRPM<<std::endl;
 
         if (targetRPM > 65500)
             targetRPM = 65500;
@@ -140,6 +142,16 @@ public:
             m_geo_debug_er_3.publish(msg_er);
     }
 
+    void publishRPY(float roll, float pitch, float yaw) {
+        msg_rpy.data = roll;
+        m_geo_debug_roll.publish(msg_rpy);
+        msg_rpy.data = pitch;
+        m_geo_debug_pitch.publish(msg_rpy);
+        msg_rpy.data = yaw;
+        m_geo_debug_yaw.publish(msg_rpy);
+    }
+
+
 private:
     Vector3d x0;
     Vector3d v0;
@@ -162,10 +174,15 @@ private:
     ros::Publisher m_geo_debug_er_2;
     ros::Publisher m_geo_debug_er_3;
 
+    ros::Publisher m_geo_debug_roll;
+    ros::Publisher m_geo_debug_pitch;
+    ros::Publisher m_geo_debug_yaw;
 
     std_msgs::Float32 msg_f;
     std_msgs::Int16 msg_r;
     std_msgs::Float32 msg_er;
+    std_msgs::Float32 msg_rpy;
+
 
 };
 

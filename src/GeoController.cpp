@@ -28,7 +28,7 @@ public:
         m_serviceTakeoff = nh.advertiseService("takeoff", &GeoController::takeoff, this);
         m_serviceLand = nh.advertiseService("land", &GeoController::land, this);
         dynamics = new dynamicsImpl(n, m_worldFrame, m_bodyFrame);
-        controllerImpl  = new ControllerImpl(n);
+        controllerImpl  = new ControllerImpl(n, dynamics);
         counter_started = false;
         utils = new geoControllerUtils;
         e3[0] = 0; e3[1] = 0; e3[2] = 1;
@@ -104,29 +104,12 @@ public:
             case Automatic: {
                 tf::StampedTransform transform;
                 m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
-//                geometry_msgs::PoseStamped targetWorld;
-//                targetWorld.header.stamp = transform.stamp_;
-//                targetWorld.header.frame_id = m_worldFrame;
-//                targetWorld.pose = m_goal.pose; //todo:WHYYY???
-//
-//                geometry_msgs::PoseStamped targetDrone;
-//                m_listener.transformPose(m_bodyFrame, targetWorld, targetDrone);
-
-                tfScalar roll, pitch, yaw;
-                tf::Matrix3x3(tf::Quaternion(
-                            transform.getRotation().x(),
-                            transform.getRotation().y(),
-                            transform.getRotation().z(),
-                            transform.getRotation().w()
-                        )).getRPY(roll,pitch,yaw);
-
-                dynamics->setR(roll, pitch, yaw);
 
                 Matrix3d R = dynamics->getR();
                 std::cout << "R: "<<R<<std::endl;
 
                 dynamics->setdt(dt);
-                Vector3d* x_arr = dynamics->get_x_v_Omega();
+                Vector3d* x_arr = dynamics->get_x_v_Omega(transform, t_frame);
                 Vector3d x = x_arr[0];
                 Vector3d x_dot = x_arr[1];
                 Vector3d Omega = x_arr[3];
@@ -147,14 +130,16 @@ public:
                     f = controllerImpl->getTotalForce(dt, t_frame);
 
                     momentVec = controllerImpl->getMomentVector();
-                    momentVec[0] = 0; momentVec[1] = 0; momentVec[2] = 0;
-                    mot_force_vec = controllerImpl->getMotorForceVector(f, momentVec);
+//                    momentVec[1] = 0; momentVec[2] = 0;
+                    mot_force_vec = controllerImpl->getMotorForceVector(-f, momentVec);
                     std::cout<<"\nmot_force_vec: "<<mot_force_vec[0]<<" "<<mot_force_vec[1]<<" "<<mot_force_vec[2]<<" "<<mot_force_vec[3]<<"\n";
 
-                    RPM1 = utils->getTargetRatio(mot_force_vec[0]);
-                    RPM2 = utils->getTargetRatio(mot_force_vec[1]);
-                    RPM3 = utils->getTargetRatio(mot_force_vec[2]);
-                    RPM4 = utils->getTargetRatio(mot_force_vec[3]);
+                    if(f < 0) {
+                        RPM1 = utils->getTargetRatio(mot_force_vec[0]);
+                        RPM2 = utils->getTargetRatio(mot_force_vec[1]);
+                        RPM3 = utils->getTargetRatio(mot_force_vec[2]);
+                        RPM4 = utils->getTargetRatio(mot_force_vec[3]);
+                    }
 
                     for(int i =0 ; i<4 ; i++)
                         utils->publishThrusts(mot_force_vec[i],i);
@@ -168,10 +153,10 @@ public:
                     utils->publishMotorRatios(RPM4,4);
 
                     geometry_msgs::Twist msg;
-                    msg.linear.x = RPM4;
-                    msg.linear.y = RPM1;
-                    msg.linear.z = RPM2;
-                    msg.angular.x = RPM3;
+                    msg.linear.x = RPM2;
+                    msg.linear.y = RPM3;
+                    msg.linear.z = RPM4;
+                    msg.angular.x = RPM1;
 
                     m_pubThrust.publish(msg);
 

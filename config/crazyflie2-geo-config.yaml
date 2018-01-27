@@ -8,10 +8,10 @@ uav:
   ctf: 0.025134
 
 controller:
-  kx: 16
-  kv: 5
-  kr: 1
-  kOmega: 0.01
+  kx: 30
+  kv: 14
+  kr: 0.5
+  kOmega: 0.001
 
 trajectory:
   x0:

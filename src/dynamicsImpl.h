@@ -40,10 +40,9 @@ public:
     }
 
     void ImuValRecieved(const sensor_msgs::Imu::ConstPtr &msg) {
-        x_ddot << msg->linear_acceleration.x, msg->linear_acceleration.y, msg->linear_acceleration.z;
-        Omega << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
+        x_ddot << msg->linear_acceleration.x*cos(M_PI/4), msg->linear_acceleration.y*cos(M_PI/4), msg->linear_acceleration.z;
+//        Omega << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
         IMUreceive = true;
-        //angular_velocity.y => forward (pitch), x => roll
 
     }
 
@@ -52,10 +51,21 @@ public:
         this->dt = dt;
     }
 
-    Vector3d *get_x_v_Omega() {
-        tf::StampedTransform transform;
-        transformListener.lookupTransform(worldFrame, bodyFrame, ros::Time(0), transform);
-        x << transform.getOrigin().x(), transform.getOrigin().y(), transform.getOrigin().z();
+    Vector3d RPY_now;
+    Vector3d RPY_dt;
+
+    Vector3d *get_x_v_Omega(tf::StampedTransform transform_now, double t_frame) {
+        std::cout<<"t_frame: "<<t_frame;
+        if(t_frame < 0.5)
+            transform_dt = transform_now;
+
+        x << transform_now.getOrigin().x(), transform_now.getOrigin().y(), transform_now.getOrigin().z();
+        RPY_now = transformtoRPY(transform_now);
+
+        RPY_dt = transformtoRPY(transform_dt);
+        Omega = (RPY_now - RPY_dt)/dt;
+        setR(RPY_now(0),RPY_now(1), RPY_now(2));
+
         x_dot = (x - prev_x) / dt;
         x_arr[0] = x;
         x_arr[1] = x_dot;
@@ -63,20 +73,48 @@ public:
         x_arr[3] = Omega;
         prev_x = x;
         prev_x_dot = x_dot;
-
+        transform_dt = transform_now;
         return x_arr;
     }
 
-    void setR(tfScalar roll, tfScalar pitch, tfScalar yaw) {
+    Vector3d transformtoRPY(tf::StampedTransform transform) {
+        tfScalar roll, pitch, yaw;
         Vector3d rpy;
-        rpy << roll,pitch, yaw;
-        this->R << utils->getSkewSymmetricMap(rpy);
+        tf::Matrix3x3(tf::Quaternion(
+                transform.getRotation().x(),
+                transform.getRotation().y(),
+                transform.getRotation().z(),
+                transform.getRotation().w()
+        )).getRPY(roll,pitch,yaw);
+        rpy << -roll, -pitch, yaw;
+        return rpy;
+    }
+
+    /**
+     *
+     * @param gamma roll
+     * @param beta pitch
+     * @param alpha yaw
+     */
+    void setR(tfScalar gamma, tfScalar beta, tfScalar alpha) {
+
+        R <<
+          cos(alpha) * cos(beta), cos(alpha) * sin(beta) * sin(gamma) - sin(alpha) * cos(gamma),
+                cos(alpha) * sin(beta) * cos(gamma) + sin(alpha) * sin(gamma),
+                sin(alpha) * cos(beta), sin(alpha) * sin(beta) * sin(gamma) + cos(alpha) * cos(gamma),
+                sin(alpha) * sin(beta) * cos(gamma) + cos(alpha) * sin(gamma),
+                -sin(beta), cos(beta) * sin(gamma), cos(beta) * cos(gamma);
+        rpy << gamma, beta, alpha;
+        utils->publishRPY(gamma, beta, alpha);
     }
 
     Matrix3d getR() {
         return this->R;
     }
 
+    Vector3d getRpy() {
+        return rpy;
+    }
 
 private:
 //    ros::NodeHandle &nodeHandle;
@@ -94,6 +132,7 @@ private:
     Matrix3d prev_R;
     Matrix3d R;
 
+    Vector3d rpy;
     Vector3d Omega;
     Vector3d Omega_dot;
     Vector3d prev_Omega;
@@ -108,5 +147,7 @@ private:
     geoControllerUtils *utils;
     bool IMUreceive = false;
     ros::Publisher debug_coeffs;
+    tf::StampedTransform transform_dt;
+
 };
 

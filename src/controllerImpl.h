@@ -18,7 +18,7 @@ using namespace Eigen;
 class ControllerImpl {
 
 public:
-    ControllerImpl(const ros::NodeHandle &nodeHandle) : n(nodeHandle) {
+    ControllerImpl(const ros::NodeHandle &nodeHandle, dynamicsImpl* dynamics) : n(nodeHandle), dynamics(dynamics) {
         t_frame = 0;
         prev_R_d << 1, 0, 0,
                 0, 1, 0,
@@ -117,7 +117,8 @@ public:
         M = -kr * eR - kOmega * eOmega + Omega.cross(J*Omega) -
             J*((Omega_hat * R.transpose() * R_d) * Omega_d -
                            (R.transpose() * R_d) * Omega_dot_d);
-        std::cout<<"Omega_d: "<< Omega_d[0]<<", "<<Omega_d[1]<<" , "<<Omega_d[2]<<std::endl;
+        std::cout << "Omega_d: " << Omega_d[0] << " " << Omega_d[1] << " " << Omega_d[2] << " Omega_dot_d: "
+                  << Omega_dot_d[0] << " " << Omega_dot_d[1] << " " << Omega_dot_d[2] << std::endl;
         return M;
     }
 
@@ -146,20 +147,28 @@ public:
         Vector3d b3_d_nume = -kx * ex - kv * ev - m * g * e3 + m * xddot_d;
         b3_d = b3_d_nume / b3_d_nume.norm();
 //        b1_d << cos(M_PI * t_frame), sin(M_PI * t_frame), 0;
-        b1_d << 1, 0, t_frame;
+        b1_d << 0, 1, 0;
         Vector3d b2_d_nume = b3_d.cross(b1_d);
         b2_d = b2_d_nume / b2_d_nume.norm();
         R_d << b2_d.cross(b3_d), b2_d, b3_d;
-
-        // todo: divide by dt or 1
-        R_dot_d = (R_d - prev_R_d) / 1;
-        std::cout<<"R_dot_d:\n"<<R_dot_d<<"\n";
+        R_d << 1, 0, 0,
+                0, 1, 0,
+                0, 0, 1;
+        std::cout<<"R_d:\n"<<R_d<<"\n";
     }
 
     void calculate_Omega_desired() {
-        Matrix3d inv_prev_R_d = prev_R_d.transpose();
+        rpy_d << atan(-R_d(2,0)/sqrt(R_d(2,1)*R_d(2,1) + R_d(2,2)*R_d(2,2))),
+                atan(R_d(2,1)/R_d(2,2)),
+                atan(R_d(1,0)/R_d(0,0));
+        Vector3d rpy = dynamics->getRpy();
 
-        Omega_d = utils.getVeeMap(inv_prev_R_d*R_dot_d);
+        std::cout<<"rpy: "<<rpy[0]<<" , "<<rpy[1]<<" , "<<rpy[2]<<" rpy_d: "<<rpy_d[0]<<" , "<<rpy_d[1]<<" , "<<rpy_d[2]<<std::endl;
+
+
+
+        Omega_d = (rpy_d - rpy)/dt;
+
         Omega_dot_d = (Omega_d - prev_Omega_d) / dt;
         prev_Omega_d = Omega_d;
     }
@@ -230,6 +239,7 @@ private:
     Vector3d v;
     Matrix3d R;
     Vector3d Omega;
+    Vector3d rpy_d;
     Vector3d Omega_dot;
 
     // initial parameters
@@ -254,7 +264,7 @@ private:
     float kv;
     float kr;
     float kOmega;
-    static const float g = -9.5;
+    static const float g = 8.7;
 
     // translation vectors
     Vector3d e1;
@@ -273,5 +283,6 @@ private:
     Matrix4d coeffMat;
     Matrix4d inv_coeffMat;
     ros::Publisher debug_coeffs;
+    dynamicsImpl* dynamics;
 
 };
