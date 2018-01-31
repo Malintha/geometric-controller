@@ -28,7 +28,7 @@ public:
         geoControllerUtils utils;
 
         e1[0] = e2[1] = e3[2] = 1;
-        e1[1] = e1[2] = e2[0] = e2[2] = e3[0] = e3[1] = 1;
+        e1[1] = e1[2] = e2[0] = e2[2] = e3[0] = e3[1] = 0;
 
         // set values from the yaml file
         float j11 = utils.get(n, "uav/J/J1");
@@ -79,30 +79,27 @@ public:
         this->Omega = Omega;
     }
 
+    void setInitValues(float dt, double time_frame, bool isTakingOff) {
+        this->t_frame = time_frame;
+        this->dt = dt;
+        calculate_x_desired();
+        calculate_ex_ev();
+        calculate_Rd(isTakingOff);
+        calculate_Omega_desired();
+        calculate_eR_eOmega();
+    }
+
     /**
-     * should be invoked after dynamic values are set
+     * calculate the force vector. Should be invoked after dynamic values are set
      * @param e
      * @return
      */
-    double getTotalForce(float dt, double time_frame) {
-        t_frame = time_frame;
-
-        this->dt = dt;
-
-        calculate_x_desired();
-        calculate_ex_ev();
-        calculate_Rd();
-        calculate_Omega_desired();
-        calculate_eR_eOmega();
-
-        //calculate the force vector
+    double getTotalForce() {
         Vector3d f_temp = -(-kx * ex - kv * ev - m * g * e3 + m * xddot_d);
-//        std::cout<<"m * g * e3 : "<<m * g * e3 <<"\n"<<" m * xddot_d: "<<m * xddot_d<<std::endl;
         std_msgs::String msg;
         std::stringstream ss;
         Vector3d Re3 = R * e3;
         double f = f_temp.dot(Re3);
-
         ss << "kx: "<<kx<<" ex: "<<ex<<" kv: "<<kv<<" ev: "<<ev<<" m: "<<m<<" g "<<g<<" e3: "<<e3<<" xddot_d: "<<xddot_d<<"f: "<<f;
         msg.data = ss.str();
         debug_coeffs.publish(msg);
@@ -112,7 +109,6 @@ public:
     Vector3d getMomentVector() {
 
         std::cout<<"eR: "<<eR[0]<<" , "<<eR[1]<<" , "<<eR[2]<<" eOmega: "<<eOmega[0]<<" , "<<eOmega[1]<<" , "<<eOmega[2]<<std::endl;
-
         Matrix3d Omega_hat = utils.getSkewSymmetricMap(Omega);
         M = -kr * eR - kOmega * eOmega + Omega.cross(J*Omega) -
             J*((Omega_hat * R.transpose() * R_d) * Omega_d -
@@ -125,6 +121,9 @@ public:
     void calculate_ex_ev() {
         ex = x - x_d;
         ev = v - xdot_d;
+        for (int i = 0; i < 3; i++)
+            utils.publishEx(ex[i],i);
+
         std::cout<<"ex: "<<ex[0]<<" , "<<ex[1]<<" , "<<ex[2]<<" ev: "<<ev[0]<<" , "<<ev[1]<<" , "<<ev[2]<<std::endl;
     }
 
@@ -135,25 +134,28 @@ public:
     void calculate_eR_eOmega() {
         Matrix3d eR_temp = 0.5 * (Eigen::Transpose<Matrix3d>(R_d) * R - Eigen::Transpose<Matrix3d>(R) * R_d);
         eR = utils.getVeeMap(eR_temp);
-        for (int i=0;i<3;i++) {
-            utils.publishEr(eR[i],i);
-        }
         eOmega = Omega - Eigen::Transpose<Matrix3d>(R) * R_d * Omega_d;
-//        std::cout<<"Omega: "<<Omega[0]<<" , "<<Omega[1]<<" , "<<Omega[2]<<" Omega_d: "<<Omega_d[0]<<" , "<<Omega_d[1]<<" , "<<Omega_d[2]<<std::endl;
+
+        for (int i=0;i<3;i++) {
+            utils.publishEr(eR[i], i);
+        }
+        for (int i=0;i<3;i++) {
+            utils.publishEOmega(eOmega[i], i);
+        }
     }
 
-
-    void calculate_Rd() {
+    void calculate_Rd(bool isTakingOff) {
         Vector3d b3_d_nume = -kx * ex - kv * ev - m * g * e3 + m * xddot_d;
         b3_d = b3_d_nume / b3_d_nume.norm();
-//        b1_d << cos(M_PI * t_frame), sin(M_PI * t_frame), 0;
-        b1_d << 0, 1, 0;
+        b1_d << 1, 0, 0.05*t_frame;
         Vector3d b2_d_nume = b3_d.cross(b1_d);
         b2_d = b2_d_nume / b2_d_nume.norm();
         R_d << b2_d.cross(b3_d), b2_d, b3_d;
-        R_d << 1, 0, 0,
-                0, 1, 0,
-                0, 0, 1;
+        if (isTakingOff) {
+            R_d << 1, 0, 0,
+                    0, 1, 0,
+                    0, 0, 1;
+        }
         std::cout<<"R_d:\n"<<R_d<<"\n";
     }
 
@@ -164,29 +166,12 @@ public:
         Vector3d rpy = dynamics->getRpy();
 
         std::cout<<"rpy: "<<rpy[0]<<" , "<<rpy[1]<<" , "<<rpy[2]<<" rpy_d: "<<rpy_d[0]<<" , "<<rpy_d[1]<<" , "<<rpy_d[2]<<std::endl;
-
-
-
         Omega_d = (rpy_d - rpy)/dt;
-
         Omega_dot_d = (Omega_d - prev_Omega_d) / dt;
         prev_Omega_d = Omega_d;
     }
 
     void calculate_x_desired() {
-//        ROS_INFO("##### t: %f ######\n",this->t_frame);
-//        x_d[0] = 0.4 * t_frame;
-//        x_d[1] = 0.4 * sin(M_PI * t_frame);
-//        x_d[2] = 0.6 * cos(M_PI * t_frame);
-
-//        xdot_d[0] = 0.4;
-//        xdot_d[1] = 0.4 * cos(M_PI * t_frame);
-//        xdot_d[2] = -0.6 * sin(M_PI * t_frame);
-
-//        xddot_d[0] = 0;
-//        xddot_d[1] = -0.4 * sin(M_PI * t_frame);
-//        xddot_d[2] = -0.6 * cos(M_PI * t_frame);
-
         x_d[0] = 0;
         x_d[1] = 0;
         x_d[2] = 0.05*t_frame;
@@ -198,7 +183,6 @@ public:
         xddot_d[0] = 0;
         xddot_d[1] = 0;
         xddot_d[2] = 0;
-
     }
 
     Vector4d getMotorForceVector(double totForce, Vector3d momentVec){
@@ -206,7 +190,7 @@ public:
         Vector4d mot_force_vec(4,1);
         f_m_vec << totForce, momentVec[0], momentVec[1], momentVec[2];
 
-        std::cout<<"inv_coeffMat:\n"<<inv_coeffMat<<"\nf_m_vec: "<<f_m_vec<<"\n";
+        std::cout<<"\nf_m_vec: "<<f_m_vec<<"\n";
         mot_force_vec = inv_coeffMat*f_m_vec;
         return mot_force_vec;
     }
@@ -215,6 +199,15 @@ public:
         Matrix3d eye = Matrix<double, 3, 3>::Identity();
         double att_error = (0.5*(eye - Eigen::Transpose<Matrix3d>(R_d)*R)).trace();
         return att_error >= 0 ? att_error: 0;
+    }
+
+    bool doVerticalTakeoff() {
+
+        return false;
+    }
+
+    void doTiltCompensation(Matrix3d R_d) {
+
     }
 
 private:
@@ -264,7 +257,7 @@ private:
     float kv;
     float kr;
     float kOmega;
-    static const float g = 8.7;
+    static const float g = -8.7;
 
     // translation vectors
     Vector3d e1;

@@ -55,7 +55,6 @@ public:
     Vector3d RPY_dt;
 
     Vector3d *get_x_v_Omega(tf::StampedTransform transform_now, double t_frame) {
-        std::cout<<"t_frame: "<<t_frame;
         if(t_frame < 0.5)
             transform_dt = transform_now;
 
@@ -86,7 +85,7 @@ public:
                 transform.getRotation().z(),
                 transform.getRotation().w()
         )).getRPY(roll,pitch,yaw);
-        rpy << -roll, -pitch, yaw;
+        rpy << roll, -pitch, yaw;
         return rpy;
     }
 
