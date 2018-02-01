@@ -46,6 +46,8 @@ public:
         kr = utils.get(n, "controller/kr");
         kOmega = utils.get(n, "controller/kOmega");
 
+        kr_t = utils.get(n, "takingoff/kr");
+        kOmega_t = utils.get(n, "takingoff/kOmega");
 
         coeffMat << 1, 1, 1, 1,
                     0, -d, 0, d,
@@ -87,6 +89,10 @@ public:
         calculate_Rd(isTakingOff);
         calculate_Omega_desired();
         calculate_eR_eOmega();
+        if(isTakingOff) {
+//            eR[2] = 0;
+//            eOmega[2] = 0;
+        }
     }
 
     /**
@@ -106,10 +112,16 @@ public:
         return f;
     }
 
-    Vector3d getMomentVector() {
+    Vector3d getMomentVector(bool isTakingoff) {
+        if(isTakingoff) {
+            kOmega = kOmega_t;
+            kr = kr_t;
+        }
 
         std::cout<<"eR: "<<eR[0]<<" , "<<eR[1]<<" , "<<eR[2]<<" eOmega: "<<eOmega[0]<<" , "<<eOmega[1]<<" , "<<eOmega[2]<<std::endl;
         Matrix3d Omega_hat = utils.getSkewSymmetricMap(Omega);
+//        eR[2] = eR[2]*0.01;
+//        eOmega[2] = eOmega[2]*0.1;
         M = -kr * eR - kOmega * eOmega + Omega.cross(J*Omega) -
             J*((Omega_hat * R.transpose() * R_d) * Omega_d -
                            (R.transpose() * R_d) * Omega_dot_d);
@@ -121,8 +133,10 @@ public:
     void calculate_ex_ev() {
         ex = x - x_d;
         ev = v - xdot_d;
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 3; i++) {
             utils.publishEx(ex[i],i);
+            utils.publishEv(ev[i],i);
+        }
 
         std::cout<<"ex: "<<ex[0]<<" , "<<ex[1]<<" , "<<ex[2]<<" ev: "<<ev[0]<<" , "<<ev[1]<<" , "<<ev[2]<<std::endl;
     }
@@ -138,8 +152,6 @@ public:
 
         for (int i=0;i<3;i++) {
             utils.publishEr(eR[i], i);
-        }
-        for (int i=0;i<3;i++) {
             utils.publishEOmega(eOmega[i], i);
         }
     }
@@ -147,15 +159,15 @@ public:
     void calculate_Rd(bool isTakingOff) {
         Vector3d b3_d_nume = -kx * ex - kv * ev - m * g * e3 + m * xddot_d;
         b3_d = b3_d_nume / b3_d_nume.norm();
-        b1_d << 1, 0, 0.05*t_frame;
+        b1_d << 1, 0, 0.2;
         Vector3d b2_d_nume = b3_d.cross(b1_d);
         b2_d = b2_d_nume / b2_d_nume.norm();
         R_d << b2_d.cross(b3_d), b2_d, b3_d;
-        if (isTakingOff) {
-            R_d << 1, 0, 0,
-                    0, 1, 0,
-                    0, 0, 1;
-        }
+//        if (isTakingOff) {
+//            R_d << 1, 0, 0,
+//                    0, 1, 0,
+//                    0, 0, 1;
+//        }
         std::cout<<"R_d:\n"<<R_d<<"\n";
     }
 
@@ -174,11 +186,11 @@ public:
     void calculate_x_desired() {
         x_d[0] = 0;
         x_d[1] = 0;
-        x_d[2] = 0.05*t_frame;
+        x_d[2] = 0.2;
 
         xdot_d[0] = 0;
         xdot_d[1] = 0;
-        xdot_d[2] = 0.05;
+        xdot_d[2] = 0.0;
 
         xddot_d[0] = 0;
         xddot_d[1] = 0;
@@ -199,15 +211,6 @@ public:
         Matrix3d eye = Matrix<double, 3, 3>::Identity();
         double att_error = (0.5*(eye - Eigen::Transpose<Matrix3d>(R_d)*R)).trace();
         return att_error >= 0 ? att_error: 0;
-    }
-
-    bool doVerticalTakeoff() {
-
-        return false;
-    }
-
-    void doTiltCompensation(Matrix3d R_d) {
-
     }
 
 private:
@@ -253,10 +256,8 @@ private:
     float m;
     float d;
     float ctf;
-    float kx;
-    float kv;
-    float kr;
-    float kOmega;
+    float kx, kv, kr, kOmega;
+    float kx_t, kv_t, kr_t, kOmega_t;
     static const float g = -8.7;
 
     // translation vectors

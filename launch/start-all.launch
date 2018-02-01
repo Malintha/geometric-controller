@@ -40,7 +40,7 @@
     <param name="robot_description" command="$(find xacro)/xacro.py $(find crazyflie_description)/urdf/crazyflie.urdf.xacro" />
     <!--<node name="rviz" pkg="rviz" type="rviz" args="-d $(find crazyflie_demo)/launch/crazyflie_pos.rviz" required="true" />-->
     <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot1"
-          args="/crazyflie/geo_debug_f1 /crazyflie/geo_debug_f2 /crazyflie/geo_debug_f3 /crazyflie/geo_debug_f4"/>
+          args="/crazyflie/geo_debug_totalthrust"/>
 
     <!--<node pkg="rqt_plot" type="rqt_plot" name="rqt_plot2"-->
           <!--args="/crazyflie/geo_debug_ratio_m1 /crazyflie/geo_debug_ratio_m2 /crazyflie/geo_debug_ratio_m3 /crazyflie/geo_debug_ratio_m4"/>-->
@@ -49,10 +49,16 @@
 
     <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot4" args="/crazyflie/geo_debug_er_1 /crazyflie/geo_debug_er_2 /crazyflie/geo_debug_er_3"/>
 
-    <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot5" args="/crazyflie/geo_debug_roll /crazyflie/geo_debug_pitch /crazyflie/geo_debug_yaw"/>
+    <!--<node pkg="rqt_plot" type="rqt_plot" name="rqt_plot5" args="/crazyflie/geo_debug_roll /crazyflie/geo_debug_pitch /crazyflie/geo_debug_yaw"/>-->
 
-    <!--<node pkg="rqt_plot" type="rqt_plot" name="rqt_plot6" args="/crazyflie/geo_debug_ex_1 /crazyflie/geo_debug_ex_2 /crazyflie/geo_debug_ex_3"/>-->
+    <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot6"
+          args="/crazyflie/geo_debug_ex_1 /crazyflie/geo_debug_ex_2 /crazyflie/geo_debug_ex_3"/>
 
-    <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot6" args="/crazyflie/geo_debug_eOmega_1 /crazyflie/geo_debug_eOmega_2 /crazyflie/geo_debug_eOmega_3"/>
+    <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot7"
+          args="/crazyflie/geo_debug_x_1 /crazyflie/geo_debug_x_2 /crazyflie/geo_debug_x_3"/>
+
+    <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot8" args="/crazyflie/geo_debug_eOmega_1 /crazyflie/geo_debug_eOmega_2 /crazyflie/geo_debug_eOmega_3"/>
+
+    <node pkg="rqt_plot" type="rqt_plot" name="rqt_plot9" args="/crazyflie/geo_debug_ev_1 /crazyflie/geo_debug_ev_2 /crazyflie/geo_debug_ev_3"/>
 
 </launch>

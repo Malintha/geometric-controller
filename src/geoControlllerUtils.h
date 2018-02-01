@@ -40,6 +40,14 @@ public:
         m_geo_debug_ex_2 = nh.advertise<std_msgs::Float32>("geo_debug_ex_2", 10);
         m_geo_debug_ex_3 = nh.advertise<std_msgs::Float32>("geo_debug_ex_3", 10);
 
+        m_geo_debug_ev_1 = nh.advertise<std_msgs::Float32>("geo_debug_ev_1", 10);
+        m_geo_debug_ev_2 = nh.advertise<std_msgs::Float32>("geo_debug_ev_2", 10);
+        m_geo_debug_ev_3 = nh.advertise<std_msgs::Float32>("geo_debug_ev_3", 10);
+
+        m_geo_debug_x_1 = nh.advertise<std_msgs::Float32>("geo_debug_x_1", 10);
+        m_geo_debug_x_2 = nh.advertise<std_msgs::Float32>("geo_debug_x_2", 10);
+        m_geo_debug_x_3 = nh.advertise<std_msgs::Float32>("geo_debug_x_3", 10);
+
         m_geo_debug_eOmega_1 = nh.advertise<std_msgs::Float32>("geo_debug_eOmega_1", 10);
         m_geo_debug_eOmega_2 = nh.advertise<std_msgs::Float32>("geo_debug_eOmega_2", 10);
         m_geo_debug_eOmega_3 = nh.advertise<std_msgs::Float32>("geo_debug_eOmega_3", 10);
@@ -59,11 +67,9 @@ public:
     }
 
     double getTargetRatio(double targetThrust) {
-        //todo: make negative thrusts 0s?
         double targetRPM;
         if (targetThrust > 0)
-            targetRPM = (targetThrust*100*1310.62);
-//        std::cout<<"target thrust: "<<targetThrust<<" targetRPM: "<<targetRPM<<std::endl;
+            targetRPM = (-1.032633 + (sqrt(10195.96+852118*targetThrust))*0.01)*100000/4.26059;
 
         if (targetRPM > 65500)
             targetRPM = 65500;
@@ -160,6 +166,26 @@ public:
             m_geo_debug_ex_3.publish(msg_ex);
     }
 
+    void publishEv(double ev, int i) {
+        msg_ev.data = ev;
+        if(i == 0)
+            m_geo_debug_ev_1.publish(msg_ev);
+        else if(i == 1)
+            m_geo_debug_ev_2.publish(msg_ev);
+        else if (i == 2)
+            m_geo_debug_ev_3.publish(msg_ev);
+    }
+
+    void publishX(double x, int i) {
+        msg_x.data = x;
+        if(i == 0)
+            m_geo_debug_x_1.publish(msg_x);
+        else if(i == 1)
+            m_geo_debug_x_2.publish(msg_x);
+        else if (i == 2)
+            m_geo_debug_x_3.publish(msg_x);
+    }
+
     void publishEOmega(double eOmega, int i) {
         msg_eOmega.data = eOmega;
         if(i == 0)
@@ -205,6 +231,14 @@ private:
     ros::Publisher m_geo_debug_ex_2;
     ros::Publisher m_geo_debug_ex_3;
 
+    ros::Publisher m_geo_debug_ev_1;
+    ros::Publisher m_geo_debug_ev_2;
+    ros::Publisher m_geo_debug_ev_3;
+
+    ros::Publisher m_geo_debug_x_1;
+    ros::Publisher m_geo_debug_x_2;
+    ros::Publisher m_geo_debug_x_3;
+
     ros::Publisher m_geo_debug_eOmega_1;
     ros::Publisher m_geo_debug_eOmega_2;
     ros::Publisher m_geo_debug_eOmega_3;
@@ -217,6 +251,8 @@ private:
     std_msgs::Int16 msg_r;
     std_msgs::Float32 msg_er;
     std_msgs::Float32 msg_ex;
+    std_msgs::Float32 msg_ev;
+    std_msgs::Float32 msg_x;
     std_msgs::Float32 msg_eOmega;
     std_msgs::Float32 msg_rpy;
 

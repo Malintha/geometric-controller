@@ -31,9 +31,6 @@ public:
         controllerImpl = new ControllerImpl(n, dynamics);
         counter_started = false;
         utils = new geoControllerUtils;
-        e3[0] = 0;
-        e3[1] = 0;
-        e3[2] = 1;
         ROS_INFO("###GeoController Initialized###\n");
 
     };
@@ -60,42 +57,34 @@ public:
         dynamics->setdt(dt);
         Vector3d *x_arr = dynamics->get_x_v_Omega(transform, t_frame);
         Vector3d x = x_arr[0];
+        utils->publishX(x[2],2);
         Vector3d x_dot = x_arr[1];
         Vector3d Omega = x_arr[3];
         controllerImpl->setDynamicsValues(x, x_dot, R, Omega);
 
         switch (m_state) {
             case TakingOff: {
-//                if (transform.getOrigin().z() > m_startZ + 3) {
+                t_frame += dt;
+                m_force = 0.1;
+//                if(transform.getOrigin().z() > 0.1) {
 //                    m_state = Automatic;
-//                } else {
-//                    if (transform.getOrigin().z() < m_startZ + 0.02)
-//                        m_force += 0.01;
-                    m_force = 0.3;
+//                    m_force -= 0.1;
+//                }
                     controllerImpl->setInitValues(dt, t_frame, true);
                     std::cout << "taking off: thrust: " << m_force << " z: " << transform.getOrigin().z() << "\n";
-                    Vector3d M = controllerImpl->getMomentVector();
+                    Vector3d M = controllerImpl->getMomentVector(true);
                     Vector4d motorForces = controllerImpl->getMotorForceVector(m_force, M);
                     publishToCf(m_force, motorForces);
 //                }
             }
                 break;
             case Landing: {
-//                m_goal.pose.position.z = m_startZ + 0.05;
-//                tf::StampedTransform transform;
-//                m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
-//                if (transform.getOrigin().z() <= m_startZ + 0.05) {
-//                    m_state = Idle;
-//                    geometry_msgs::Twist msg;
-//                    m_pubNav.publish(msg);
-//                }
                 geometry_msgs::Twist msg;
                 msg.linear.x = 0;
                 msg.linear.y = 0;
                 msg.linear.z = 0;
                 msg.angular.x = 0;
                 m_pubThrust.publish(msg);
-
             }
 
             case Automatic: {
@@ -104,11 +93,13 @@ public:
                 Vector4d mot_force_vec;
 
                 if (R.minCoeff() < 0) {
-                    t_frame += dt;
                     std::cout<<"\nt_frame: "<<t_frame<<std::endl;
-                    controllerImpl->setInitValues(dt, t_frame, true);
+                    controllerImpl->setInitValues(dt, t_frame, false);
                     f = controllerImpl->getTotalForce();
-                    momentVec = controllerImpl->getMomentVector();
+                    momentVec = controllerImpl->getMomentVector(false);
+                    if(transform.getOrigin().z() < 0.05) {
+                        momentVec[0] = momentVec[1] = momentVec[2] = 0;
+                    }
                     mot_force_vec = controllerImpl->getMotorForceVector(-f, momentVec);
                     std::cout << "\nmot_force_vec: " << mot_force_vec[0] << " " << mot_force_vec[1] << " "
                               << mot_force_vec[2] << " " << mot_force_vec[3] << "\n";
@@ -117,23 +108,6 @@ public:
             }
                 break;
             case Idle: {
-//                tf::StampedTransform transform;
-//                m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
-//                float dt = e.current_real.toSec() - e.last_real.toSec();
-//                if(dt > 1)
-//                    dt = 0.02;
-////                dynamics->setdt(dt);
-////                Matrix3d temp_R = dynamics->getR();
-////                std::cout << "R: \n"<<temp_R<<"\n";
-//                geometry_msgs::Twist msg;
-////                if(temp_R.minCoeff() != 0) {
-////                    ROS_INFO("Reading from IMU. Ready to fly.");
-//                msg.linear.x = 0;
-//                msg.linear.y = 0;
-//                msg.linear.z = 0;
-//                msg.angular.x = 10000;
-////                }
-//                m_pubThrust.publish(msg);
             }
                 break;
         }
@@ -191,7 +165,7 @@ private:
             utils->publishThrusts(mot_force_vec[i], i);
         utils->publishThrusts(f, 4);
 
-        std::cout << "\nMotorRatios: " << RPM1 << " " << RPM2 << " " << RPM3 << " " << RPM4 << "\n";
+        std::cout << "MotorRatios: " << RPM1 << " " << RPM2 << " " << RPM3 << " " << RPM4 << "\n";
 
         utils->publishMotorRatios(RPM1, 1);
         utils->publishMotorRatios(RPM2, 2);
@@ -204,7 +178,7 @@ private:
         msg.linear.z = RPM4;
         msg.angular.x = RPM1;
         m_pubThrust.publish(msg);
-    }
+     }
 
 
 };
