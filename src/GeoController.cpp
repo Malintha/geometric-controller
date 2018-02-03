@@ -50,12 +50,13 @@ public:
         float dt = e.current_real.toSec() - e.last_real.toSec();
         if (dt > 10)
             dt = 0.02;
+        t_frame += dt;
         tf::StampedTransform transform;
         m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
-        Matrix3d R = dynamics->getR();
-        std::cout << "R: " << R << std::endl;
         dynamics->setdt(dt);
         Vector3d *x_arr = dynamics->get_x_v_Omega(transform, t_frame);
+        Matrix3d R = dynamics->getR();
+        std::cout << "R: " << R << std::endl;
         Vector3d x = x_arr[0];
         utils->publishX(x[2],2);
         Vector3d x_dot = x_arr[1];
@@ -64,12 +65,7 @@ public:
 
         switch (m_state) {
             case TakingOff: {
-                t_frame += dt;
                 m_force = 0.1;
-//                if(transform.getOrigin().z() > 0.1) {
-//                    m_state = Automatic;
-//                    m_force -= 0.1;
-//                }
                     controllerImpl->setInitValues(dt, t_frame, true);
                     std::cout << "taking off: thrust: " << m_force << " z: " << transform.getOrigin().z() << "\n";
                     Vector3d M = controllerImpl->getMomentVector(true);
@@ -100,10 +96,10 @@ public:
                     if(transform.getOrigin().z() < 0.05) {
                         momentVec[0] = momentVec[1] = momentVec[2] = 0;
                     }
-                    mot_force_vec = controllerImpl->getMotorForceVector(-f, momentVec);
+                    mot_force_vec = controllerImpl->getMotorForceVector(f, momentVec);
                     std::cout << "\nmot_force_vec: " << mot_force_vec[0] << " " << mot_force_vec[1] << " "
                               << mot_force_vec[2] << " " << mot_force_vec[3] << "\n";
-                    publishToCf(-f, mot_force_vec);
+                    publishToCf(f, mot_force_vec);
                 }
             }
                 break;
@@ -139,8 +135,7 @@ private:
         ROS_INFO("Takeoff requested!");
         tf::StampedTransform transform;
         m_state = TakingOff;
-//        m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
-//        m_startZ = transform.getOrigin().z();
+
         return true;
     }
 
@@ -180,6 +175,13 @@ private:
         m_pubThrust.publish(msg);
      }
 
+    tf::StampedTransform getTransform() {
+        tf::StampedTransform transform;
+        m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
+        transform.getOrigin().setY(transform.getOrigin().y());
+        transform.getOrigin().setZ(transform.getOrigin().z());
+        return transform;
+    }
 
 };
 

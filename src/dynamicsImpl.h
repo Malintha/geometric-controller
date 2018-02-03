@@ -52,17 +52,23 @@ public:
     }
 
     Vector3d RPY_now;
-    Vector3d RPY_dt;
+    Vector3d RPY_t_1;
 
     Vector3d *get_x_v_Omega(tf::StampedTransform transform_now, double t_frame) {
-        if(t_frame < 0.5)
-            transform_dt = transform_now;
+        if(t_frame < 0.02)
+            transform_t_1 = transform_now;
 
         x << transform_now.getOrigin().x(), transform_now.getOrigin().y(), transform_now.getOrigin().z();
         RPY_now = transformtoRPY(transform_now);
+        RPY_t_1 = transformtoRPY(transform_t_1);
 
-        RPY_dt = transformtoRPY(transform_dt);
-        Omega = (RPY_now - RPY_dt)/dt;
+        utils->publishRPY(RPY_now[0], RPY_now[1], RPY_now[2]);
+
+        Omega = (RPY_now - RPY_t_1)/dt;
+        std::cout<<"Omega: "<<Omega[0]<<" "<<Omega[1]<<" "<<Omega[2]<<std::endl;
+        for(int i=0;i<3;i++)
+            utils->publishOmega(Omega[i],i);
+
         setR(RPY_now(0),RPY_now(1), RPY_now(2));
 
         x_dot = (x - prev_x) / dt;
@@ -72,7 +78,7 @@ public:
         x_arr[3] = Omega;
         prev_x = x;
         prev_x_dot = x_dot;
-        transform_dt = transform_now;
+        transform_t_1 = transform_now;
         return x_arr;
     }
 
@@ -85,7 +91,7 @@ public:
                 transform.getRotation().z(),
                 transform.getRotation().w()
         )).getRPY(roll,pitch,yaw);
-        rpy << roll, -pitch, yaw;
+        rpy << -roll, -pitch, yaw;
         return rpy;
     }
 
@@ -96,15 +102,17 @@ public:
      * @param alpha yaw
      */
     void setR(tfScalar gamma, tfScalar beta, tfScalar alpha) {
-
         R <<
           cos(alpha) * cos(beta), cos(alpha) * sin(beta) * sin(gamma) - sin(alpha) * cos(gamma),
                 cos(alpha) * sin(beta) * cos(gamma) + sin(alpha) * sin(gamma),
                 sin(alpha) * cos(beta), sin(alpha) * sin(beta) * sin(gamma) + cos(alpha) * cos(gamma),
                 sin(alpha) * sin(beta) * cos(gamma) + cos(alpha) * sin(gamma),
                 -sin(beta), cos(beta) * sin(gamma), cos(beta) * cos(gamma);
-        rpy << gamma, beta, alpha;
-        utils->publishRPY(gamma, beta, alpha);
+        Matrix3d rotation;
+        rotation << 1, 0, 0,
+                    0, -1, 0,
+                    0, 0, -1;
+        R = R*rotation;
     }
 
     Matrix3d getR() {
@@ -112,7 +120,7 @@ public:
     }
 
     Vector3d getRpy() {
-        return rpy;
+        return RPY_now;
     }
 
 private:
@@ -146,7 +154,7 @@ private:
     geoControllerUtils *utils;
     bool IMUreceive = false;
     ros::Publisher debug_coeffs;
-    tf::StampedTransform transform_dt;
+    tf::StampedTransform transform_t_1;
 
 };
 

@@ -65,6 +65,9 @@ public:
 
         ros::NodeHandle nh;
         debug_coeffs = nh.advertise<std_msgs::String>("geo_debug_coeffs", 1000);
+        R_d_t_1 << 1, 0, 0,
+                   0, 1, 0,
+                   0, 0, 1;
 
     }
 
@@ -84,14 +87,18 @@ public:
     void setInitValues(float dt, double time_frame, bool isTakingOff) {
         this->t_frame = time_frame;
         this->dt = dt;
+        if(isTakingOff) {
+            kOmega = kOmega_t;
+            kr = kr_t;
+            kx = kx_t;
+            kv = kv_t;
+        }
         calculate_x_desired();
         calculate_ex_ev();
         calculate_Rd(isTakingOff);
         calculate_Omega_desired();
         calculate_eR_eOmega();
         if(isTakingOff) {
-//            eR[2] = 0;
-//            eOmega[2] = 0;
         }
     }
 
@@ -113,20 +120,20 @@ public:
     }
 
     Vector3d getMomentVector(bool isTakingoff) {
-        if(isTakingoff) {
-            kOmega = kOmega_t;
-            kr = kr_t;
-        }
-
         std::cout<<"eR: "<<eR[0]<<" , "<<eR[1]<<" , "<<eR[2]<<" eOmega: "<<eOmega[0]<<" , "<<eOmega[1]<<" , "<<eOmega[2]<<std::endl;
         Matrix3d Omega_hat = utils.getSkewSymmetricMap(Omega);
-//        eR[2] = eR[2]*0.01;
-//        eOmega[2] = eOmega[2]*0.1;
         M = -kr * eR - kOmega * eOmega + Omega.cross(J*Omega) -
-            J*((Omega_hat * R.transpose() * R_d) * Omega_d -
-                           (R.transpose() * R_d) * Omega_dot_d);
+            J*(Omega_hat * R.transpose() * R_d * Omega_d -
+                           R.transpose() * R_d * Omega_dot_d);
         std::cout << "Omega_d: " << Omega_d[0] << " " << Omega_d[1] << " " << Omega_d[2] << " Omega_dot_d: "
                   << Omega_dot_d[0] << " " << Omega_dot_d[1] << " " << Omega_dot_d[2] << std::endl;
+        M[2] = -M[2];
+        M[1] = -M[1];
+
+        for(int i = 0;i<3;i++) {
+            utils.publishMoment(M[i],i);
+        }
+
         return M;
     }
 
@@ -146,7 +153,7 @@ public:
     }
 
     void calculate_eR_eOmega() {
-        Matrix3d eR_temp = 0.5 * (Eigen::Transpose<Matrix3d>(R_d) * R - Eigen::Transpose<Matrix3d>(R) * R_d);
+        Matrix3d eR_temp = 0.5 * (R_d.transpose()*R - R.transpose()*R_d);
         eR = utils.getVeeMap(eR_temp);
         eOmega = Omega - Eigen::Transpose<Matrix3d>(R) * R_d * Omega_d;
 
@@ -158,27 +165,28 @@ public:
 
     void calculate_Rd(bool isTakingOff) {
         Vector3d b3_d_nume = -kx * ex - kv * ev - m * g * e3 + m * xddot_d;
-        b3_d = b3_d_nume / b3_d_nume.norm();
-        b1_d << 1, 0, 0.2;
+        b3_d = -b3_d_nume / b3_d_nume.norm();
+        b1_d << 1, 0, 0;
+
+        std::cout<<"\nb3_d: "<<b3_d<<"\n";
+
         Vector3d b2_d_nume = b3_d.cross(b1_d);
         b2_d = b2_d_nume / b2_d_nume.norm();
+
+        R_d_t_1 = R_d;
         R_d << b2_d.cross(b3_d), b2_d, b3_d;
-//        if (isTakingOff) {
-//            R_d << 1, 0, 0,
-//                    0, 1, 0,
-//                    0, 0, 1;
-//        }
         std::cout<<"R_d:\n"<<R_d<<"\n";
     }
 
     void calculate_Omega_desired() {
-        rpy_d << atan(-R_d(2,0)/sqrt(R_d(2,1)*R_d(2,1) + R_d(2,2)*R_d(2,2))),
-                atan(R_d(2,1)/R_d(2,2)),
-                atan(R_d(1,0)/R_d(0,0));
-        Vector3d rpy = dynamics->getRpy();
+        rpy_d_now = utils.R2RPY(R_d);
+        rpy_d_t_1 = utils.R2RPY(R_d_t_1);
 
-        std::cout<<"rpy: "<<rpy[0]<<" , "<<rpy[1]<<" , "<<rpy[2]<<" rpy_d: "<<rpy_d[0]<<" , "<<rpy_d[1]<<" , "<<rpy_d[2]<<std::endl;
-        Omega_d = (rpy_d - rpy)/dt;
+        std::cout << "rpy_d_now: " << rpy_d_now[0] << " " << rpy_d_now[1] << " " << rpy_d_now[2] << " rpy_d_t_1: "
+                  << rpy_d_t_1[0] << " " << rpy_d_t_1[1] << " " << rpy_d_t_1[2] << std::endl;
+
+        Vector3d rpy = dynamics->getRpy();
+        Omega_d = (rpy_d_now - rpy_d_t_1)/dt;
         Omega_dot_d = (Omega_d - prev_Omega_d) / dt;
         prev_Omega_d = Omega_d;
     }
@@ -186,11 +194,11 @@ public:
     void calculate_x_desired() {
         x_d[0] = 0;
         x_d[1] = 0;
-        x_d[2] = 0.2;
+        x_d[2] = 0.15;
 
         xdot_d[0] = 0;
         xdot_d[1] = 0;
-        xdot_d[2] = 0.0;
+        xdot_d[2] = 0;
 
         xddot_d[0] = 0;
         xddot_d[1] = 0;
@@ -226,6 +234,7 @@ private:
     Vector3d b2_d;
     Vector3d b3_d;
     Matrix3d R_d;
+    Matrix3d R_d_t_1;
     Matrix3d R_dot_d;
     Vector3d Omega_d;
     Vector3d Omega_dot_d;
@@ -235,7 +244,8 @@ private:
     Vector3d v;
     Matrix3d R;
     Vector3d Omega;
-    Vector3d rpy_d;
+    Vector3d rpy_d_now;
+    Vector3d rpy_d_t_1;
     Vector3d Omega_dot;
 
     // initial parameters
@@ -258,7 +268,7 @@ private:
     float ctf;
     float kx, kv, kr, kOmega;
     float kx_t, kv_t, kr_t, kOmega_t;
-    static const float g = -8.7;
+    static const float g =  -9.80665;
 
     // translation vectors
     Vector3d e1;

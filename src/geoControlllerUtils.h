@@ -52,10 +52,17 @@ public:
         m_geo_debug_eOmega_2 = nh.advertise<std_msgs::Float32>("geo_debug_eOmega_2", 10);
         m_geo_debug_eOmega_3 = nh.advertise<std_msgs::Float32>("geo_debug_eOmega_3", 10);
 
+        m_geo_debug_Omega_1 = nh.advertise<std_msgs::Float32>("geo_debug_Omega_1", 10);
+        m_geo_debug_Omega_2 = nh.advertise<std_msgs::Float32>("geo_debug_Omega_2", 10);
+        m_geo_debug_Omega_3 = nh.advertise<std_msgs::Float32>("geo_debug_Omega_3", 10);
+
         m_geo_debug_roll = nh.advertise<std_msgs::Float32>("geo_debug_roll", 10);
         m_geo_debug_pitch = nh.advertise<std_msgs::Float32>("geo_debug_pitch", 10);
         m_geo_debug_yaw = nh.advertise<std_msgs::Float32>("geo_debug_yaw", 10);
 
+        m_geo_debug_m1 = nh.advertise<std_msgs::Float32>("geo_debug_m1", 10);
+        m_geo_debug_m2 = nh.advertise<std_msgs::Float32>("geo_debug_m2", 10);
+        m_geo_debug_m3 = nh.advertise<std_msgs::Float32>("geo_debug_m3", 10);
     }
 
     double get(const ros::NodeHandle &n, const std::string &name) {
@@ -71,8 +78,8 @@ public:
         if (targetThrust > 0)
             targetRPM = (-1.032633 + (sqrt(10195.96+852118*targetThrust))*0.01)*100000/4.26059;
 
-        if (targetRPM > 65500)
-            targetRPM = 65500;
+        if (targetRPM > 65535)
+            targetRPM = 65535;
         return targetRPM;
     }
 
@@ -99,6 +106,14 @@ public:
                 vec(2), 0, -vec(0),
                 -vec(1), vec(0), 0;
         return hat_map;
+    }
+
+    Vector3d R2RPY(Matrix3d R) {
+        Vector3d rpy;
+        rpy << atan(-R(2,0)/sqrt(R(2,1)*R(2,1) + R(2,2)*R(2,2))),
+                atan(R(2,1)/R(2,2)),
+                atan(R(1,0)/R(0,0));
+        return rpy;
     }
 
     Vector3d getOmega0() {
@@ -196,6 +211,26 @@ public:
             m_geo_debug_eOmega_3.publish(msg_eOmega);
     }
 
+    void publishOmega(double Omega, int i) {
+        msg_Omega.data = Omega;
+        if(i == 0)
+            m_geo_debug_Omega_1.publish(msg_Omega);
+        else if(i == 1)
+            m_geo_debug_Omega_2.publish(msg_Omega);
+        else if (i == 2)
+            m_geo_debug_Omega_3.publish(msg_Omega);
+    }
+
+    void publishMoment(double m, int i) {
+        msg_m.data = m;
+        if(i == 0)
+            m_geo_debug_m1.publish(msg_m);
+        else if(i == 1)
+            m_geo_debug_m2.publish(msg_m);
+        else if (i == 2)
+            m_geo_debug_m3.publish(msg_m);
+    }
+
     void publishRPY(float roll, float pitch, float yaw) {
         msg_rpy.data = roll;
         m_geo_debug_roll.publish(msg_rpy);
@@ -239,6 +274,10 @@ private:
     ros::Publisher m_geo_debug_x_2;
     ros::Publisher m_geo_debug_x_3;
 
+    ros::Publisher m_geo_debug_Omega_1;
+    ros::Publisher m_geo_debug_Omega_2;
+    ros::Publisher m_geo_debug_Omega_3;
+
     ros::Publisher m_geo_debug_eOmega_1;
     ros::Publisher m_geo_debug_eOmega_2;
     ros::Publisher m_geo_debug_eOmega_3;
@@ -247,14 +286,20 @@ private:
     ros::Publisher m_geo_debug_pitch;
     ros::Publisher m_geo_debug_yaw;
 
+    ros::Publisher m_geo_debug_m1;
+    ros::Publisher m_geo_debug_m2;
+    ros::Publisher m_geo_debug_m3;
+
     std_msgs::Float32 msg_f;
     std_msgs::Int16 msg_r;
     std_msgs::Float32 msg_er;
     std_msgs::Float32 msg_ex;
     std_msgs::Float32 msg_ev;
     std_msgs::Float32 msg_x;
+    std_msgs::Float32 msg_Omega;
     std_msgs::Float32 msg_eOmega;
     std_msgs::Float32 msg_rpy;
+    std_msgs::Float32 msg_m;
 
 
 };
