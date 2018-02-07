@@ -68,7 +68,6 @@ public:
         R_d_t_1 << 1,  0,  0,
                    0, -1,  0,
                    0,  0, -1;
-
     }
 
     void setDynamicsValues(Vector3d x, Vector3d v, Matrix3d R, Vector3d Omega) {

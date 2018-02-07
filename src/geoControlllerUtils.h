@@ -110,8 +110,8 @@ public:
 
     Vector3d R2RPY(Matrix3d R) {
         Vector3d rpy;
-        rpy << atan(-R(2,0)/sqrt(R(2,1)*R(2,1) + R(2,2)*R(2,2))),
-                atan(R(2,1)/R(2,2)),
+        rpy <<  atan(R(2,1)/R(2,2)),
+                atan(-R(2,0)/sqrt(R(2,1)*R(2,1) + R(2,2)*R(2,2))),
                 atan(R(1,0)/R(0,0));
         return rpy;
     }

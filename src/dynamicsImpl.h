@@ -68,9 +68,9 @@ public:
         rpy_ned_t_1 = utils->R2RPY(R_t_1_ned);
         this->R = R_t_ned;
 
-        utils->publishRPY(RPY_now[0], RPY_now[1], RPY_now[2]);
+        utils->publishRPY(rpy_ned_t[0], rpy_ned_t[1], rpy_ned_t[2]);
 
-        Omega = (RPY_now - RPY_t_1)/dt;
+        Omega = (rpy_ned_t - rpy_ned_t_1)/dt;
         std::cout<<"Omega: "<<Omega[0]<<" "<<Omega[1]<<" "<<Omega[2]<<std::endl;
         for(int i=0;i<3;i++)
             utils->publishOmega(Omega[i],i);
@@ -88,8 +88,7 @@ public:
     }
 
     /**
-     * roll is measured cw. pitch and yaw are ccw
-     * All three are measured counterclockwise. In vicon, it returns rll and pitch cw. Hence, make them inverted.
+     * roll is measured ccw
      * @param transform
      * @return
      */
@@ -102,19 +101,10 @@ public:
                 transform.getRotation().z(),
                 transform.getRotation().w()
         )).getRPY(roll,pitch,yaw);
-        rpy << -roll, -pitch, yaw;
+        rpy << roll, pitch, yaw;
         return rpy;
     }
 
-    /**
-     * tranform the given RPY values in the NWU frame to NED
-     * @return
-     */
-    Vector3d transformNWUToNED(Vector3d rpy) {
-        rpy[1] = -rpy[1];
-        rpy[2] = -rpy[2];
-        return rpy;
-    }
 
     /**
      * @param gamma roll
