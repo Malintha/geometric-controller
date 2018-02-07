@@ -178,8 +178,8 @@ private:
     tf::StampedTransform getTransform() {
         tf::StampedTransform transform;
         m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
-        transform.getOrigin().setY(transform.getOrigin().y());
-        transform.getOrigin().setZ(transform.getOrigin().z());
+        transform.getOrigin().setY(-transform.getOrigin().y());
+        transform.getOrigin().setZ(-transform.getOrigin().z());
         return transform;
     }
 

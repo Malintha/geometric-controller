@@ -51,16 +51,22 @@ public:
         this->dt = dt;
     }
 
-    Vector3d RPY_now;
-    Vector3d RPY_t_1;
+    Vector3d RPY_now, RPY_t_1;
+    Vector3d rpy_ned_t, rpy_ned_t_1;
+
 
     Vector3d *get_x_v_Omega(tf::StampedTransform transform_now, double t_frame) {
         if(t_frame < 0.02)
             transform_t_1 = transform_now;
 
         x << transform_now.getOrigin().x(), transform_now.getOrigin().y(), transform_now.getOrigin().z();
-        RPY_now = transformtoRPY(transform_now);
-        RPY_t_1 = transformtoRPY(transform_t_1);
+        RPY_now = (transformtoRPY(transform_now));
+        RPY_t_1 = (transformtoRPY(transform_t_1));
+        Matrix3d R_t_ned = getR(RPY_now(0),RPY_now(1), RPY_now(2));
+        Matrix3d R_t_1_ned = getR(RPY_t_1[0], RPY_t_1[1], RPY_t_1[2]);
+        rpy_ned_t = utils->R2RPY(R_t_ned);
+        rpy_ned_t_1 = utils->R2RPY(R_t_1_ned);
+        this->R = R_t_ned;
 
         utils->publishRPY(RPY_now[0], RPY_now[1], RPY_now[2]);
 
@@ -69,7 +75,6 @@ public:
         for(int i=0;i<3;i++)
             utils->publishOmega(Omega[i],i);
 
-        setR(RPY_now(0),RPY_now(1), RPY_now(2));
 
         x_dot = (x - prev_x) / dt;
         x_arr[0] = x;
@@ -82,6 +87,12 @@ public:
         return x_arr;
     }
 
+    /**
+     * roll is measured cw. pitch and yaw are ccw
+     * All three are measured counterclockwise. In vicon, it returns rll and pitch cw. Hence, make them inverted.
+     * @param transform
+     * @return
+     */
     Vector3d transformtoRPY(tf::StampedTransform transform) {
         tfScalar roll, pitch, yaw;
         Vector3d rpy;
@@ -96,23 +107,32 @@ public:
     }
 
     /**
-     *
+     * tranform the given RPY values in the NWU frame to NED
+     * @return
+     */
+    Vector3d transformNWUToNED(Vector3d rpy) {
+        rpy[1] = -rpy[1];
+        rpy[2] = -rpy[2];
+        return rpy;
+    }
+
+    /**
      * @param gamma roll
      * @param beta pitch
      * @param alpha yaw
      */
-    void setR(tfScalar gamma, tfScalar beta, tfScalar alpha) {
+    Matrix3d getR(tfScalar gamma, tfScalar beta, tfScalar alpha) {
+        Matrix3d R;
         R <<
-          cos(alpha) * cos(beta), cos(alpha) * sin(beta) * sin(gamma) - sin(alpha) * cos(gamma),
-                cos(alpha) * sin(beta) * cos(gamma) + sin(alpha) * sin(gamma),
-                sin(alpha) * cos(beta), sin(alpha) * sin(beta) * sin(gamma) + cos(alpha) * cos(gamma),
-                sin(alpha) * sin(beta) * cos(gamma) + cos(alpha) * sin(gamma),
+          cos(alpha) * cos(beta), cos(alpha) * sin(beta) * sin(gamma) - sin(alpha) * cos(gamma), cos(alpha) * sin(beta) * cos(gamma) + sin(alpha) * sin(gamma),
+                sin(alpha) * cos(beta), sin(alpha) * sin(beta) * sin(gamma) + cos(alpha) * cos(gamma), sin(alpha) * sin(beta) * cos(gamma) - cos(alpha) * sin(gamma),
                 -sin(beta), cos(beta) * sin(gamma), cos(beta) * cos(gamma);
-        Matrix3d rotation;
-        rotation << 1, 0, 0,
-                    0, -1, 0,
-                    0, 0, -1;
-        R = R*rotation;
+        Matrix3d transformation;
+        transformation <<   1, 0,  0,
+                            0, -1, 0,
+                            0, 0, -1;
+        R = transformation*R;
+        return R;
     }
 
     Matrix3d getR() {

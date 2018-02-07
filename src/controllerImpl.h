@@ -65,9 +65,9 @@ public:
 
         ros::NodeHandle nh;
         debug_coeffs = nh.advertise<std_msgs::String>("geo_debug_coeffs", 1000);
-        R_d_t_1 << 1, 0, 0,
-                   0, 1, 0,
-                   0, 0, 1;
+        R_d_t_1 << 1,  0,  0,
+                   0, -1,  0,
+                   0,  0, -1;
 
     }
 
@@ -127,8 +127,6 @@ public:
                            R.transpose() * R_d * Omega_dot_d);
         std::cout << "Omega_d: " << Omega_d[0] << " " << Omega_d[1] << " " << Omega_d[2] << " Omega_dot_d: "
                   << Omega_dot_d[0] << " " << Omega_dot_d[1] << " " << Omega_dot_d[2] << std::endl;
-        M[2] = -M[2];
-        M[1] = -M[1];
 
         for(int i = 0;i<3;i++) {
             utils.publishMoment(M[i],i);
@@ -156,7 +154,6 @@ public:
         Matrix3d eR_temp = 0.5 * (R_d.transpose()*R - R.transpose()*R_d);
         eR = utils.getVeeMap(eR_temp);
         eOmega = Omega - Eigen::Transpose<Matrix3d>(R) * R_d * Omega_d;
-
         for (int i=0;i<3;i++) {
             utils.publishEr(eR[i], i);
             utils.publishEOmega(eOmega[i], i);
