@@ -18,13 +18,8 @@ using namespace Eigen;
 class ControllerImpl {
 
 public:
-    ControllerImpl(const ros::NodeHandle &nodeHandle, dynamicsImpl* dynamics) : n(nodeHandle), dynamics(dynamics) {
-        t_frame = 0;
-        prev_R_d << 1, 0, 0,
-                0, 1, 0,
-                0, 0, 1;
+    ControllerImpl(const ros::NodeHandle &nodeHandle, dynamicsImpl *dynamics) : n(nodeHandle), dynamics(dynamics) {
         prev_Omega_d << 0, 0, 0;
-
         geoControllerUtils utils;
 
         e1[0] = e2[1] = e3[2] = 1;
@@ -34,10 +29,6 @@ public:
         float j11 = utils.get(n, "uav/J/J1");
         float j22 = utils.get(n, "uav/J/J2");
         float j33 = utils.get(n, "uav/J/J3");
-        J << j11, 0, 0,
-            0, j22, 0,
-            0, 0, j33;
-
         m = utils.get(n, "uav/m");
         d = utils.get(n, "uav/d");
         ctf = utils.get(n, "uav/ctf");
@@ -46,28 +37,29 @@ public:
         kr = utils.get(n, "controller/kr");
         kOmega = utils.get(n, "controller/kOmega");
 
-        kr_t = utils.get(n, "takingoff/kr");
-        kOmega_t = utils.get(n, "takingoff/kOmega");
-
         coeffMat << 1, 1, 1, 1,
-                    0, -d, 0, d,
-                    d, 0, -d, 0,
-                    -ctf, ctf, -ctf, ctf;
-
+                0, -d, 0, d,
+                d, 0, -d, 0,
+                -ctf, ctf, -ctf, ctf;
         inv_coeffMat = Eigen::Inverse<Matrix4d>(coeffMat);
-
         x0 << utils.get(n, "trajectory/x0/x01"), utils.get(n, "trajectory/x0/x02"), utils.get(n, "trajectory/x0/x03");
         v0 << utils.get(n, "trajectory/v0/v01"), utils.get(n, "trajectory/v0/v02"), utils.get(n, "trajectory/v0/v03");
-        R0 << utils.get(n, "trajectory/R0/R0_r1/r1_1"), utils.get(n, "trajectory/R0/R0_r1/r1_2"), utils.get(n, "trajectory/R0/R0_r1/r1_3"),
-                utils.get(n, "trajectory/R0/R0_r2/r2_1"), utils.get(n, "trajectory/R0/R0_r2/r2_2"), utils.get(n, "trajectory/R0/R0_r2/r2_3"),
-                utils.get(n, "trajectory/R0/R0_r3/r3_1"), utils.get(n, "trajectory/R0/R0_r3/r3_2"), utils.get(n, "trajectory/R0/R0_r3/r3_3");
-        Omega0 << utils.get(n, "trajectory/Omega0/Omega01"), utils.get(n, "trajectory/Omega0/Omega02"), utils.get(n, "trajectory/Omega0/Omega03");
+        R0 << utils.get(n, "trajectory/R0/R0_r1/r1_1"), utils.get(n, "trajectory/R0/R0_r1/r1_2"), utils.get(n,
+                                                                                                            "trajectory/R0/R0_r1/r1_3"),
+                utils.get(n, "trajectory/R0/R0_r2/r2_1"), utils.get(n, "trajectory/R0/R0_r2/r2_2"), utils.get(n,
+                                                                                                              "trajectory/R0/R0_r2/r2_3"),
+                utils.get(n, "trajectory/R0/R0_r3/r3_1"), utils.get(n, "trajectory/R0/R0_r3/r3_2"), utils.get(n,
+                                                                                                              "trajectory/R0/R0_r3/r3_3");
+        Omega0 << utils.get(n, "trajectory/Omega0/Omega01"), utils.get(n, "trajectory/Omega0/Omega02"), utils.get(n,
+                                                                                                                  "trajectory/Omega0/Omega03");
+        J << j11, 0, 0,
+                0, j22, 0,
+                0, 0, j33;
 
+        R_d_t_1 << 1, 0, 0,
+                0, 1, 0,
+                0, 0, 1;
         ros::NodeHandle nh;
-        debug_coeffs = nh.advertise<std_msgs::String>("geo_debug_coeffs", 1000);
-        R_d_t_1 << 1,  0,  0,
-                   0, -1,  0,
-                   0,  0, -1;
     }
 
     void setDynamicsValues(Vector3d x, Vector3d v, Matrix3d R, Vector3d Omega) {
@@ -76,6 +68,7 @@ public:
             this->v = v0;
             this->R = R0;
             this->Omega = Omega0;
+            isFirst = false;
         }
         this->x = x;
         this->v = v;
@@ -83,54 +76,35 @@ public:
         this->Omega = Omega;
     }
 
-    void setInitValues(float dt, double time_frame, bool isTakingOff) {
-        this->t_frame = time_frame;
+    void setInitValues(float dt, double time_frame) {
         this->dt = dt;
-        if(isTakingOff) {
-            kOmega = kOmega_t;
-            kr = kr_t;
-            kx = kx_t;
-            kv = kv_t;
-        }
-        calculate_x_desired();
+        set_x_desired();
         calculate_ex_ev();
-        calculate_Rd(isTakingOff);
+//        set_Rd();
         calculate_Omega_desired();
         calculate_eR_eOmega();
-        if(isTakingOff) {
-        }
     }
 
     /**
-     * calculate the force vector. Should be invoked after dynamic values are set
+     * return the force vector. Should be invoked after dynamic values are set
      * @param e
      * @return
      */
     double getTotalForce() {
-        Vector3d f_temp = -(-kx * ex - kv * ev - m * g * e3 + m * xddot_d);
-        std_msgs::String msg;
-        std::stringstream ss;
-        Vector3d Re3 = R * e3;
-        double f = f_temp.dot(Re3);
-        ss << "kx: "<<kx<<" ex: "<<ex<<" kv: "<<kv<<" ev: "<<ev<<" m: "<<m<<" g "<<g<<" e3: "<<e3<<" xddot_d: "<<xddot_d<<"f: "<<f;
-        msg.data = ss.str();
-        debug_coeffs.publish(msg);
-        return f;
+        return this->f;
     }
 
-    Vector3d getMomentVector(bool isTakingoff) {
-        std::cout<<"eR: "<<eR[0]<<" , "<<eR[1]<<" , "<<eR[2]<<" eOmega: "<<eOmega[0]<<" , "<<eOmega[1]<<" , "<<eOmega[2]<<std::endl;
-        Matrix3d Omega_hat = utils.getSkewSymmetricMap(Omega);
-        M = -kr * eR - kOmega * eOmega + Omega.cross(J*Omega) -
-            J*(Omega_hat * R.transpose() * R_d * Omega_d -
-                           R.transpose() * R_d * Omega_dot_d);
-        std::cout << "Omega_d: " << Omega_d[0] << " " << Omega_d[1] << " " << Omega_d[2] << " Omega_dot_d: "
-                  << Omega_dot_d[0] << " " << Omega_dot_d[1] << " " << Omega_dot_d[2] << std::endl;
+    Vector3d getMomentVector() {
+        M = -kr * eR - kOmega * eOmega + Omega.cross(J * Omega) -
+            J * (utils.getSkewSymmetricMap(Omega) * R.transpose() * R_d * Omega_d -
+                 R.transpose() * R_d * Omega_dot_d);
 
-        for(int i = 0;i<3;i++) {
-            utils.publishMoment(M[i],i);
+//        std::cout<<"kr: "<<kr<<"eR: "<<eR<<" eOmega: "<<eOmega<<" Omega: "<<Omega<<" R: "<<R<<"R_d: "<<R_d<<" Omega_d: "<<Omega_d<<" Omega_dot_d: "<<Omega_dot_d;
+        std::cout<<"M : "<<M;
+
+        for (int i = 0; i < 3; i++) {
+            utils.publishMoment(M[i], i);
         }
-
         return M;
     }
 
@@ -138,100 +112,145 @@ public:
         ex = x - x_d;
         ev = v - xdot_d;
         for (int i = 0; i < 3; i++) {
-            utils.publishEx(ex[i],i);
-            utils.publishEv(ev[i],i);
+            utils.publishEx(ex[i], i);
+            utils.publishEv(ev[i], i);
         }
-
-        std::cout<<"ex: "<<ex[0]<<" , "<<ex[1]<<" , "<<ex[2]<<" ev: "<<ev[0]<<" , "<<ev[1]<<" , "<<ev[2]<<std::endl;
-    }
-
-    Vector3d getEx() {
-        return this->ex;
     }
 
     void calculate_eR_eOmega() {
-        Matrix3d eR_temp = 0.5 * (R_d.transpose()*R - R.transpose()*R_d);
+//        std::cout<<"R: \n"<<R<<std::endl;
+
+        Matrix3d eR_temp = 0.5 * (R_d.transpose() * R - R.transpose() * R_d);
         eR = utils.getVeeMap(eR_temp);
-        eOmega = Omega - Eigen::Transpose<Matrix3d>(R) * R_d * Omega_d;
-        for (int i=0;i<3;i++) {
+        eOmega = Omega - R.transpose() * R_d * Omega_d;
+
+        for (int i = 0; i < 3; i++) {
             utils.publishEr(eR[i], i);
             utils.publishEOmega(eOmega[i], i);
         }
     }
 
-    void calculate_Rd(bool isTakingOff) {
-        Vector3d b3_d_nume = -kx * ex - kv * ev - m * g * e3 + m * xddot_d;
+    void set_Rd() {
+        Vector3d b3_d, b2_d;
+        Vector3d b3_d_nume = A;
         b3_d = -b3_d_nume / b3_d_nume.norm();
-        b1_d << 1, 0, 0;
-
-        std::cout<<"\nb3_d: "<<b3_d<<"\n";
-
         Vector3d b2_d_nume = b3_d.cross(b1_d);
         b2_d = b2_d_nume / b2_d_nume.norm();
-
-        R_d_t_1 = R_d;
         R_d << b2_d.cross(b3_d), b2_d, b3_d;
-        std::cout<<"R_d:\n"<<R_d<<"\n";
+//        std::cout<<"R_d_firstWay: \n"<<R_d<<std::endl;
+
     }
 
+    Vector3d A;
     void calculate_Omega_desired() {
-        rpy_d_now = utils.R2RPY(R_d);
-        rpy_d_t_1 = utils.R2RPY(R_d_t_1);
+        float g1 = this->g;
+        b1_d << 1, 0, 0;
 
-        std::cout << "rpy_d_now: " << rpy_d_now[0] << " " << rpy_d_now[1] << " " << rpy_d_now[2] << " rpy_d_t_1: "
-                  << rpy_d_t_1[0] << " " << rpy_d_t_1[1] << " " << rpy_d_t_1[2] << std::endl;
+        ////
+        Vector3d xd_3dot, xd_4dot, b1d_dot, b1d_2dot;
+        A = -kx * ex - kv * ev - m * g1 * e3 + m * xd_2dot;
+        Vector3d L = R*e3;
+        Vector3d Ldot = R*utils.getSkewSymmetricMap(Omega)*e3;
+        this->f = -A.dot(R*e3);
 
-        Vector3d rpy = dynamics->getRpy();
-        Omega_d = (rpy_d_now - rpy_d_t_1)/dt;
+        Vector3d ea = g1*e3-f/m*L-xd_2dot;
+        Vector3d Adot = -kx*ev-kv*ea+m*xd_3dot;
+
+        float fdot = -Adot.dot(L)-A.dot(Ldot);
+        Vector3d eb = -fdot/m*L-f/m*Ldot-xd_3dot;
+        Vector3d Ad_dot = -kx*ea-kv*eb+m*xd_4dot;
+
+        float nA = A.norm();
+        Vector3d Ld = -A/nA;
+        Vector3d Ld_dot = -Adot/nA+A*A.dot(Adot)/pow(nA,3);
+        Vector3d Ld_2dot = -Ad_dot/nA+Adot/pow(nA,3)*(2*A.dot(Adot))
+                           +A/pow(nA,3)*(Adot.dot(Adot)+A.dot(Ad_dot))
+                           -3*A/pow(nA,5)*pow(A.dot(Adot),2);
+
+        Vector3d Ld2 = -utils.getSkewSymmetricMap(b1_d)*Ld;
+        Vector3d Ld2_dot = -utils.getSkewSymmetricMap(b1d_dot)*Ld-utils.getSkewSymmetricMap(b1_d)*Ld_dot;
+        Vector3d Ld2_2dot = -utils.getSkewSymmetricMap(b1d_2dot)*Ld-2*utils.getSkewSymmetricMap(b1d_dot)*Ld_dot-utils.getSkewSymmetricMap(b1_d)*Ld_2dot;
+
+        float nLd2 = Ld2.norm();
+        Vector3d Rd2 = Ld2/nLd2;
+        Vector3d Rd2dot = Ld2_dot/nLd2-Ld2.dot(Ld_2dot)/pow(nLd2,3)*Ld2;
+        Vector3d Rd2_2dot = Ld2_2dot/nLd2-Ld2.dot(Ld2_dot)/pow(nLd2,3)*Ld2_dot
+                            -Ld2_dot.dot(Ld2_dot)/pow(nLd2,3)*Ld2-Ld2.dot(Ld2_2dot)/pow(nLd2,3)*Ld2
+                            -Ld2.dot(Ld2_dot)/pow(nLd2,3)*Ld2_dot
+                            +3*pow(Ld2.dot(Ld2_dot),2)/pow(nLd2,5)*Ld2;
+
+        Vector3d Rd1 = utils.getSkewSymmetricMap(Rd2)*Ld;
+
+        Vector3d Rd1dot = utils.getSkewSymmetricMap(Rd2dot)*Ld+utils.getSkewSymmetricMap(Rd2)*Ld_dot;
+        Vector3d Rd1_2dot = utils.getSkewSymmetricMap(Rd2_2dot)*Ld+2*utils.getSkewSymmetricMap(Rd2dot)*Ld_dot+utils.getSkewSymmetricMap(Rd2)*Ld_2dot;
+
+        Matrix3d Rd, Rd_dot, Rd_2dot;
+        Rd << Rd1, Rd2, Ld;
+        this->R_d = Rd;
+//        std::cout<<"\nR_d_secondWay: \n"<<Rd<<std::endl;
+        Rd_dot << Rd1dot, Rd2dot, Ld_dot;
+
+        Rd_2dot << Rd1_2dot, Rd2_2dot, Ld_2dot;
+        Omega_d = utils.getVeeMap(Rd.transpose()*Rd_dot);
         Omega_dot_d = (Omega_d - prev_Omega_d) / dt;
         prev_Omega_d = Omega_d;
+
+//        Omega_dot_d = utils.getVeeMap(Rd.transpose()*Rd_2dot-utils.getSkewSymmetricMap(Omega_d)*utils.getSkewSymmetricMap(Omega_d));
+//        std::cout<<"\nOmega_d : "<<Omega_d<<std::endl;
+
+        ////
+
+//        rpy_d_now = utils.R2RPY(R_d);
+//        rpy_d_t_1 = utils.R2RPY(R_d_t_1);
+//        Omega_d = (rpy_d_now - rpy_d_t_1) / dt;
+//        Omega_dot_d = (Omega_d - prev_Omega_d) / dt;
+//        prev_Omega_d = Omega_d;
     }
 
-    void calculate_x_desired() {
+    void set_x_desired() {
         x_d[0] = 0;
         x_d[1] = 0;
-        x_d[2] = 0.15;
+        x_d[2] = -0.15;
 
         xdot_d[0] = 0;
         xdot_d[1] = 0;
         xdot_d[2] = 0;
 
-        xddot_d[0] = 0;
-        xddot_d[1] = 0;
-        xddot_d[2] = 0;
+        xd_2dot[0] = 0;
+        xd_2dot[1] = 0;
+        xd_2dot[2] = 0;
     }
 
-    Vector4d getMotorForceVector(double totForce, Vector3d momentVec){
-        Vector4d f_m_vec(4,1);
-        Vector4d mot_force_vec(4,1);
-        f_m_vec << totForce, momentVec[0], momentVec[1], momentVec[2];
+    Vector4d getMotorForceVector(double totForce, Vector3d momentVec) {
 
-        std::cout<<"\nf_m_vec: "<<f_m_vec<<"\n";
-        mot_force_vec = inv_coeffMat*f_m_vec;
+        Vector4d f_m_vec(4, 1);
+        Vector4d mot_force_vec(4, 1);
+        f_m_vec << totForce, momentVec[0], momentVec[1], momentVec[2];
+        std::cout << "\ntotForce: " << totForce << "\n";
+        mot_force_vec = inv_coeffMat * f_m_vec;
+
+//        std::cout << "\nmot_force_vec: " << mot_force_vec << "\n";
+
         return mot_force_vec;
     }
 
     double getAttitudeError() {
         Matrix3d eye = Matrix<double, 3, 3>::Identity();
-        double att_error = (0.5*(eye - Eigen::Transpose<Matrix3d>(R_d)*R)).trace();
-        return att_error >= 0 ? att_error: 0;
+        double att_error = (0.5 * (eye - R_d.transpose() * R)).trace();
+        return att_error >= 0 ? att_error : 0;
     }
 
 private:
     ros::NodeHandle n;
     float dt;
-    double t_frame;
-
+    float f;
     // desired parameters
     Vector3d x_d;
     Vector3d xdot_d;
-    Vector3d xddot_d;
+    Vector3d xd_2dot;
     Vector3d b1_d;
-    Vector3d b2_d;
-    Vector3d b3_d;
     Matrix3d R_d;
     Matrix3d R_d_t_1;
-    Matrix3d R_dot_d;
     Vector3d Omega_d;
     Vector3d Omega_dot_d;
 
@@ -240,16 +259,12 @@ private:
     Vector3d v;
     Matrix3d R;
     Vector3d Omega;
-    Vector3d rpy_d_now;
-    Vector3d rpy_d_t_1;
-    Vector3d Omega_dot;
 
     // initial parameters
     Vector3d x0;
     Vector3d v0;
     Matrix3d R0;
     Vector3d Omega0;
-    Vector3d* test_v;
 
     // error vectors
     Vector3d ex;
@@ -263,8 +278,7 @@ private:
     float d;
     float ctf;
     float kx, kv, kr, kOmega;
-    float kx_t, kv_t, kr_t, kOmega_t;
-    static const float g =  -9.80665;
+    static const float g = 9.80665;
 
     // translation vectors
     Vector3d e1;
@@ -272,17 +286,14 @@ private:
     Vector3d e3;
 
     // force and moment vectors
-    Vector3d f;
     Vector3d M;
 
     // other variables
-    Matrix3d prev_R_d;
     Vector3d prev_Omega_d;
     bool isFirst = true;
     geoControllerUtils utils;
     Matrix4d coeffMat;
     Matrix4d inv_coeffMat;
-    ros::Publisher debug_coeffs;
-    dynamicsImpl* dynamics;
+    dynamicsImpl *dynamics;
 
 };

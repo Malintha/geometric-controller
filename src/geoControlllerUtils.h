@@ -108,11 +108,17 @@ public:
         return hat_map;
     }
 
+    /**
+     * return RPY angles given a rotation matrix.
+     * todo: check for all 4 quadrants
+     * @param R
+     * @return
+     */
     Vector3d R2RPY(Matrix3d R) {
         Vector3d rpy;
-        rpy <<  atan(R(2,1)/R(2,2)),
-                atan(-R(2,0)/sqrt(R(2,1)*R(2,1) + R(2,2)*R(2,2))),
-                atan(R(1,0)/R(0,0));
+        rpy <<  atan2(R(2,1),R(2,2)),
+                atan2(-R(2,0),sqrt(R(2,1)*R(2,1) + R(2,2)*R(2,2))),
+                atan2(R(1,0),R(0,0));
         return rpy;
     }
 

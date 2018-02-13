@@ -32,7 +32,6 @@ public:
         counter_started = false;
         utils = new geoControllerUtils;
         ROS_INFO("###GeoController Initialized###\n");
-
     };
 
     void run(double frequency) {
@@ -51,27 +50,26 @@ public:
         if (dt > 10)
             dt = 0.02;
         t_frame += dt;
-        tf::StampedTransform transform;
-        m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
+        tf::StampedTransform transform = getTransform();
+//        m_listener.lookupTransform(m_worldFrame, m_bodyFrame, ros::Time(0), transform);
         dynamics->setdt(dt);
         Vector3d *x_arr = dynamics->get_x_v_Omega(transform, t_frame);
         Matrix3d R = dynamics->getR();
-        std::cout << "R: " << R << std::endl;
+//        std::cout << "R: " << R << std::endl;
         Vector3d x = x_arr[0];
-        utils->publishX(x[2],2);
+        utils->publishX(x[2], 2);
         Vector3d x_dot = x_arr[1];
-        Vector3d Omega = x_arr[3];
+        Vector3d Omega = x_arr[2];
         controllerImpl->setDynamicsValues(x, x_dot, R, Omega);
 
         switch (m_state) {
             case TakingOff: {
                 m_force = 0.1;
-                    controllerImpl->setInitValues(dt, t_frame, true);
+                    controllerImpl->setInitValues(dt, t_frame);
                     std::cout << "taking off: thrust: " << m_force << " z: " << transform.getOrigin().z() << "\n";
-                    Vector3d M = controllerImpl->getMomentVector(true);
+                    Vector3d M = controllerImpl->getMomentVector();
                     Vector4d motorForces = controllerImpl->getMotorForceVector(m_force, M);
                     publishToCf(m_force, motorForces);
-//                }
             }
                 break;
             case Landing: {
@@ -89,16 +87,14 @@ public:
                 Vector4d mot_force_vec;
 
                 if (R.minCoeff() < 0) {
-                    std::cout<<"\nt_frame: "<<t_frame<<std::endl;
-                    controllerImpl->setInitValues(dt, t_frame, false);
+//                    std::cout<<"\nt_frame: "<<t_frame<<std::endl;
+                    controllerImpl->setInitValues(dt, t_frame);
                     f = controllerImpl->getTotalForce();
-                    momentVec = controllerImpl->getMomentVector(false);
-                    if(transform.getOrigin().z() < 0.05) {
-                        momentVec[0] = momentVec[1] = momentVec[2] = 0;
-                    }
+                    momentVec = controllerImpl->getMomentVector();
+//                    if(transform.getOrigin().z() < 0.05) {
+//                        momentVec[0] = momentVec[1] = momentVec[2] = 0;
+//                    }
                     mot_force_vec = controllerImpl->getMotorForceVector(f, momentVec);
-                    std::cout << "\nmot_force_vec: " << mot_force_vec[0] << " " << mot_force_vec[1] << " "
-                              << mot_force_vec[2] << " " << mot_force_vec[3] << "\n";
                     publishToCf(f, mot_force_vec);
                 }
             }
@@ -160,7 +156,7 @@ private:
             utils->publishThrusts(mot_force_vec[i], i);
         utils->publishThrusts(f, 4);
 
-        std::cout << "MotorRatios: " << RPM1 << " " << RPM2 << " " << RPM3 << " " << RPM4 << "\n";
+//        std::cout << "MotorRatios: " << RPM1 << " " << RPM2 << " " << RPM3 << " " << RPM4 << "\n";
 
         utils->publishMotorRatios(RPM1, 1);
         utils->publishMotorRatios(RPM2, 2);

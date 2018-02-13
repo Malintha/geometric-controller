@@ -29,7 +29,6 @@ public:
         transformListener.waitForTransform(worldFrame, bodyFrame, ros::Time(0), ros::Duration(10.0));
 
         ros::NodeHandle nh;
-        m_subscribeImuMsgs = nh.subscribe("/crazyflie/imu", 1, &dynamicsImpl::ImuValRecieved, this);
         utils = new geoControllerUtils();
         utils->initializeMatrices(n);
         Omega = prev_Omega = utils->getOmega0();
@@ -37,13 +36,6 @@ public:
         prev_x = utils->getX0();
         prev_x_dot = utils->getV0();
         dt = 0.02;
-    }
-
-    void ImuValRecieved(const sensor_msgs::Imu::ConstPtr &msg) {
-        x_ddot << msg->linear_acceleration.x*cos(M_PI/4), msg->linear_acceleration.y*cos(M_PI/4), msg->linear_acceleration.z;
-//        Omega << msg->angular_velocity.x, msg->angular_velocity.y, msg->angular_velocity.z;
-        IMUreceive = true;
-
     }
 
 
@@ -54,6 +46,7 @@ public:
     Vector3d RPY_now, RPY_t_1;
     Vector3d rpy_ned_t, rpy_ned_t_1;
 
+//todo: calculate the angular velocity using a library mavros
 
     Vector3d *get_x_v_Omega(tf::StampedTransform transform_now, double t_frame) {
         if(t_frame < 0.02)
@@ -67,20 +60,17 @@ public:
         rpy_ned_t = utils->R2RPY(R_t_ned);
         rpy_ned_t_1 = utils->R2RPY(R_t_1_ned);
         this->R = R_t_ned;
-
         utils->publishRPY(rpy_ned_t[0], rpy_ned_t[1], rpy_ned_t[2]);
 
         Omega = (rpy_ned_t - rpy_ned_t_1)/dt;
-        std::cout<<"Omega: "<<Omega[0]<<" "<<Omega[1]<<" "<<Omega[2]<<std::endl;
+//        std::cout<<"Omega: "<<Omega[0]<<" "<<Omega[1]<<" "<<Omega[2]<<std::endl;
         for(int i=0;i<3;i++)
             utils->publishOmega(Omega[i],i);
-
 
         x_dot = (x - prev_x) / dt;
         x_arr[0] = x;
         x_arr[1] = x_dot;
-        x_arr[2] = x_ddot;
-        x_arr[3] = Omega;
+        x_arr[2] = Omega;
         prev_x = x;
         prev_x_dot = x_dot;
         transform_t_1 = transform_now;
@@ -88,7 +78,7 @@ public:
     }
 
     /**
-     * roll is measured ccw
+     * all are measured ccw
      * @param transform
      * @return
      */
@@ -104,7 +94,6 @@ public:
         rpy << roll, pitch, yaw;
         return rpy;
     }
-
 
     /**
      * @param gamma roll
@@ -154,15 +143,14 @@ private:
     Vector3d Omega_dot;
     Vector3d prev_Omega;
 
-    Vector3d x_ddot;
+    Vector3d x_2dot;
     Vector3d x_dot;
     Vector3d x;
     Vector3d prev_x;
     Vector3d prev_x_dot;
 
-    Vector3d x_arr[5];
+    Vector3d x_arr[3];
     geoControllerUtils *utils;
-    bool IMUreceive = false;
     ros::Publisher debug_coeffs;
     tf::StampedTransform transform_t_1;
 
