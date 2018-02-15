@@ -86,17 +86,16 @@ public:
                 Vector3d momentVec;
                 Vector4d mot_force_vec;
 
-                if (R.minCoeff() < 0) {
 //                    std::cout<<"\nt_frame: "<<t_frame<<std::endl;
                     controllerImpl->setInitValues(dt, t_frame);
                     f = controllerImpl->getTotalForce();
                     momentVec = controllerImpl->getMomentVector();
-//                    if(transform.getOrigin().z() < 0.05) {
+//                    if(transform.getOrigin().z() < 0.04) {
 //                        momentVec[0] = momentVec[1] = momentVec[2] = 0;
 //                    }
+//                    std::cout<<"momentVec\n"<<momentVec<<std::endl;
                     mot_force_vec = controllerImpl->getMotorForceVector(f, momentVec);
                     publishToCf(f, mot_force_vec);
-                }
             }
                 break;
             case Idle: {
@@ -142,6 +141,7 @@ private:
     }
 
     void publishToCf(double f, Vector4d mot_force_vec) {
+        std::cout << mot_force_vec << std::endl;
         double RPM1 = 0;
         double RPM2 = 0;
         double RPM3 = 0;
@@ -156,7 +156,7 @@ private:
             utils->publishThrusts(mot_force_vec[i], i);
         utils->publishThrusts(f, 4);
 
-//        std::cout << "MotorRatios: " << RPM1 << " " << RPM2 << " " << RPM3 << " " << RPM4 << "\n";
+        std::cout << "MotorRatios: " << RPM1 << " " << RPM2 << " " << RPM3 << " " << RPM4 << "\n";
 
         utils->publishMotorRatios(RPM1, 1);
         utils->publishMotorRatios(RPM2, 2);

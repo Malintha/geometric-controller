@@ -52,10 +52,9 @@ public:
                                                                                                               "trajectory/R0/R0_r3/r3_3");
         Omega0 << utils.get(n, "trajectory/Omega0/Omega01"), utils.get(n, "trajectory/Omega0/Omega02"), utils.get(n,
                                                                                                                   "trajectory/Omega0/Omega03");
-        J << j11, 0, 0,
-                0, j22, 0,
-                0, 0, j33;
-
+        J << 16.571710e-6, 0.830806e-6, 0.718277e-6,
+                0.830806e-6, 16.655602e-6, 1.800197e-6,
+                0.718277e-6, 1.800197e-6, 29.261652e-6;
         R_d_t_1 << 1, 0, 0,
                 0, 1, 0,
                 0, 0, 1;
@@ -78,6 +77,7 @@ public:
 
     void setInitValues(float dt, double time_frame) {
         this->dt = dt;
+        this->time_frame = time_frame;
         set_x_desired();
         calculate_ex_ev();
 //        set_Rd();
@@ -97,11 +97,11 @@ public:
     Vector3d getMomentVector() {
         M = -kr * eR - kOmega * eOmega + Omega.cross(J * Omega) -
             J * (utils.getSkewSymmetricMap(Omega) * R.transpose() * R_d * Omega_d -
-                 R.transpose() * R_d * Omega_dot_d);
+                 R.transpose() * R_d * Omega_d_dot);
 
-//        std::cout<<"kr: "<<kr<<"eR: "<<eR<<" eOmega: "<<eOmega<<" Omega: "<<Omega<<" R: "<<R<<"R_d: "<<R_d<<" Omega_d: "<<Omega_d<<" Omega_dot_d: "<<Omega_dot_d;
+//        std::cout<<"kr: "<<kr<<"eR: "<<eR<<" eOmega: "<<eOmega<<" Omega: "<<Omega<<" R: "<<R<<"R_d: "<<R_d<<" Omega_d: "<<Omega_d<<" Omega_d_dot: "<<Omega_d_dot;
         std::cout<<"M : "<<M;
-
+//        M[2] = -M[2];
         for (int i = 0; i < 3; i++) {
             utils.publishMoment(M[i], i);
         }
@@ -119,14 +119,13 @@ public:
 
     void calculate_eR_eOmega() {
 //        std::cout<<"R: \n"<<R<<std::endl;
-
         Matrix3d eR_temp = 0.5 * (R_d.transpose() * R - R.transpose() * R_d);
         eR = utils.getVeeMap(eR_temp);
         eOmega = Omega - R.transpose() * R_d * Omega_d;
 
         for (int i = 0; i < 3; i++) {
             utils.publishEr(eR[i], i);
-            utils.publishEOmega(eOmega[i], i);
+//            utils.publishEOmega(eOmega[i], i);
         }
     }
 
@@ -137,7 +136,7 @@ public:
         Vector3d b2_d_nume = b3_d.cross(b1_d);
         b2_d = b2_d_nume / b2_d_nume.norm();
         R_d << b2_d.cross(b3_d), b2_d, b3_d;
-//        std::cout<<"R_d_firstWay: \n"<<R_d<<std::endl;
+        std::cout<<"R_d_firstWay: \n"<<R_d<<std::endl;
 
     }
 
@@ -145,13 +144,14 @@ public:
     void calculate_Omega_desired() {
         float g1 = this->g;
         b1_d << 1, 0, 0;
-
-        ////
         Vector3d xd_3dot, xd_4dot, b1d_dot, b1d_2dot;
         A = -kx * ex - kv * ev - m * g1 * e3 + m * xd_2dot;
+        this->f = -A.dot(R*e3);
+
         Vector3d L = R*e3;
         Vector3d Ldot = R*utils.getSkewSymmetricMap(Omega)*e3;
-        this->f = -A.dot(R*e3);
+
+
 
         Vector3d ea = g1*e3-f/m*L-xd_2dot;
         Vector3d Adot = -kx*ev-kv*ea+m*xd_3dot;
@@ -187,25 +187,43 @@ public:
         Matrix3d Rd, Rd_dot, Rd_2dot;
         Rd << Rd1, Rd2, Ld;
         this->R_d = Rd;
-//        std::cout<<"\nR_d_secondWay: \n"<<Rd<<std::endl;
+        std::cout<<"\nR_d: \n"<<Rd<<std::endl;
+        std::cout<<"\nR: \n"<<R<<std::endl;
+
         Rd_dot << Rd1dot, Rd2dot, Ld_dot;
 
         Rd_2dot << Rd1_2dot, Rd2_2dot, Ld_2dot;
         Omega_d = utils.getVeeMap(Rd.transpose()*Rd_dot);
-        Omega_dot_d = (Omega_d - prev_Omega_d) / dt;
+        Omega_d_dot = (Omega_d - prev_Omega_d) / dt;
         prev_Omega_d = Omega_d;
 
-//        Omega_dot_d = utils.getVeeMap(Rd.transpose()*Rd_2dot-utils.getSkewSymmetricMap(Omega_d)*utils.getSkewSymmetricMap(Omega_d));
-//        std::cout<<"\nOmega_d : "<<Omega_d<<std::endl;
+
+        Omega_d_dot = utils.getVeeMap(Rd.transpose()*Rd_2dot-utils.getSkewSymmetricMap(Omega_d)*utils.getSkewSymmetricMap(Omega_d));
+        std::cout<<"\nOmega_d : "<<Omega_d<<std::endl;
 
         ////
-
-//        rpy_d_now = utils.R2RPY(R_d);
+//my way of eOmega
+//        Vector3d rpy_d_now = utils.R2RPY(R_d);
 //        rpy_d_t_1 = utils.R2RPY(R_d_t_1);
 //        Omega_d = (rpy_d_now - rpy_d_t_1) / dt;
-//        Omega_dot_d = (Omega_d - prev_Omega_d) / dt;
+//        Omega_d_dot = (Omega_d - prev_Omega_d) / dt;
 //        prev_Omega_d = Omega_d;
+//
+        for(int i=0;i<3;i++)
+            utils.publishOmega(Omega_d[i],i);
+//
+//        R_d_t_1 = R;
     }
+//todo:
+/**my way of calculating eomega
+ * eOmega behaves like er for all body fixed axises.
+ *
+ * other way
+ * eOmega of b1 and b2 axises behaves the same as er of those axises. when the drone moves away from the goal
+ * diagonally b3 eOmega stays increased.
+ *
+ */
+
 
     void set_x_desired() {
         x_d[0] = 0;
@@ -214,7 +232,7 @@ public:
 
         xdot_d[0] = 0;
         xdot_d[1] = 0;
-        xdot_d[2] = 0;
+        xdot_d[2] = -0.00;
 
         xd_2dot[0] = 0;
         xd_2dot[1] = 0;
@@ -252,8 +270,8 @@ private:
     Matrix3d R_d;
     Matrix3d R_d_t_1;
     Vector3d Omega_d;
-    Vector3d Omega_dot_d;
-
+    Vector3d Omega_d_dot;
+    double time_frame;
     // actual parameters
     Vector3d x;
     Vector3d v;
@@ -287,7 +305,7 @@ private:
 
     // force and moment vectors
     Vector3d M;
-
+    Vector3d rpy_d_t_1;
     // other variables
     Vector3d prev_Omega_d;
     bool isFirst = true;
